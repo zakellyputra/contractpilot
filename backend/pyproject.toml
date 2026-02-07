@@ -1,0 +1,30 @@
+[project]
+name = "contractpilot-backend"
+version = "0.1.0"
+description = "ContractPilot AI contract reviewer — Python backend"
+requires-python = ">=3.11"
+dependencies = [
+    "dedalus-labs",
+    "fastapi",
+    "uvicorn[standard]",
+    "openai",
+    "httpx",
+    "convex",
+    "pymupdf",
+    "google-cloud-vision",
+    "python-multipart",
+    "python-dotenv",
+    "pydantic",
+    "kagglehub",
+    "weasyprint",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "pytest",
+    "pytest-asyncio",
+]
+
+[tool.ruff]
+line-length = 100
