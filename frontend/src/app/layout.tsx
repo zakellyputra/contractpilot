@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { FlowgladProvider } from "@flowglad/nextjs";
 import "./globals.css";
@@ -30,9 +31,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <FlowgladProvider>
-          <ConvexClientProvider>{children}</ConvexClientProvider>
-        </FlowgladProvider>
+        <ConvexAuthNextjsServerProvider>
+          <FlowgladProvider>
+            <ConvexClientProvider>{children}</ConvexClientProvider>
+          </FlowgladProvider>
+        </ConvexAuthNextjsServerProvider>
       </body>
     </html>
   );

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import UserMenu from "@/components/UserMenu";
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   pending: { bg: "bg-gray-100", text: "text-gray-600", label: "Queued" },
@@ -19,8 +20,7 @@ function riskColor(score: number | undefined) {
 }
 
 export default function DashboardPage() {
-  // In production, userId comes from DAuth. For dev, use "dev-user".
-  const reviews = useQuery(api.reviews.list, { userId: "dev-user" });
+  const reviews = useQuery(api.reviews.list, {});
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
@@ -35,12 +35,15 @@ export default function DashboardPage() {
               Your Reviews
             </h1>
           </div>
-          <Link
-            href="/"
-            className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
-          >
-            New Review
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/"
+              className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              New Review
+            </Link>
+            <UserMenu />
+          </div>
         </div>
 
         {/* Loading */}

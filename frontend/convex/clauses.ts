@@ -4,6 +4,14 @@ import { query, mutation } from "./_generated/server";
 export const getByReview = query({
   args: { reviewId: v.id("reviews") },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const review = await ctx.db.get(args.reviewId);
+    if (!review || review.userId !== identity.tokenIdentifier) {
+      return [];
+    }
+
     return await ctx.db
       .query("clauses")
       .withIndex("by_review", (q) => q.eq("reviewId", args.reviewId))
