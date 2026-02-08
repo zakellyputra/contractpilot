@@ -35,6 +35,8 @@ interface QuickSummaryViewProps {
   review: Review;
   clauses: Clause[];
   totalClauseCount?: number;
+  reviewId?: string;
+  unlocked?: boolean;
 }
 
 const RISK_BADGE: Record<string, string> = {
@@ -43,7 +45,7 @@ const RISK_BADGE: Record<string, string> = {
   low: "bg-green-100 text-green-700",
 };
 
-export default function QuickSummaryView({ review, clauses, totalClauseCount }: QuickSummaryViewProps) {
+export default function QuickSummaryView({ review, clauses, totalClauseCount, reviewId, unlocked }: QuickSummaryViewProps) {
   const hasGatedContent = clauses.length > 1 || (review.actionItems && review.actionItems.length > 0);
 
   function renderClauseCard(clause: Clause) {
@@ -115,7 +117,7 @@ export default function QuickSummaryView({ review, clauses, totalClauseCount }: 
           {/* Remaining findings + action items — single gated section */}
           {hasGatedContent && (
             <div className="mt-2">
-              <PaywallBlur featureLabel="Full Analysis">
+              <PaywallBlur featureLabel="Full Analysis" reviewId={reviewId} unlocked={unlocked}>
                 <div className="space-y-2">
                   {clauses.slice(1).map((clause) => renderClauseCard(clause))}
                 </div>
@@ -132,7 +134,7 @@ export default function QuickSummaryView({ review, clauses, totalClauseCount }: 
 
       {/* Action items (only if no clauses to gate with) */}
       {clauses.length <= 1 && review.actionItems && review.actionItems.length > 0 && (
-        <PaywallBlur featureLabel="Action Items">
+        <PaywallBlur featureLabel="Action Items" reviewId={reviewId} unlocked={unlocked}>
           <div className="bg-white border border-gray-200 rounded-xl p-5">
             <ActionItems items={review.actionItems} />
           </div>

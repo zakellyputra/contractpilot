@@ -32,6 +32,8 @@ interface PDFViewerProps {
   onClauseHover: (clauseId: string | null) => void;
   onClauseClick: (clauseId: string) => void;
   scrollLocked?: boolean;
+  credits?: number;
+  onUnlock?: () => void;
 }
 
 const RISK_COLORS: Record<string, { bg: string; activeBg: string; border: string }> = {
@@ -47,6 +49,8 @@ export default function PDFViewer({
   onClauseHover,
   onClauseClick,
   scrollLocked = false,
+  credits = 0,
+  onUnlock,
 }: PDFViewerProps) {
   const [numPages, setNumPages] = useState(0);
   const [containerWidth, setContainerWidth] = useState(600);
@@ -199,12 +203,21 @@ export default function PDFViewer({
             }}
           />
           <div className="absolute bottom-4 left-0 right-0 flex justify-center z-40">
-            <button
-              onClick={() => (window.location.href = "/billing")}
-              className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
-            >
-              Unlock Full Document View - $2.99
-            </button>
+            {credits > 0 && onUnlock ? (
+              <button
+                onClick={onUnlock}
+                className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
+              >
+                Unlock Full Document ({credits} credits remaining)
+              </button>
+            ) : (
+              <button
+                onClick={() => (window.location.href = "/billing")}
+                className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
+              >
+                Upgrade - $2.99
+              </button>
+            )}
           </div>
         </>
       )}

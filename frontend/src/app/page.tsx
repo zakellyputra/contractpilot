@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useConvexAuth } from "convex/react";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useConvexAuth, useMutation } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { api } from "../../convex/_generated/api";
 import Link from "next/link";
 import UploadDropzone from "@/components/UploadDropzone";
 import UserMenu from "@/components/UserMenu";
@@ -15,7 +16,30 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [ocrEnabled, setOcrEnabled] = useState(false);
   const [fileType, setFileType] = useState<string | null>(null);
+  const [creditAdded, setCreditAdded] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const addCredits = useMutation(api.credits.addCredits);
+
+  useEffect(() => {
+    if (
+      searchParams.get("upgraded") === "true" &&
+      isAuthenticated &&
+      !creditAdded &&
+      !sessionStorage.getItem("credits_granted")
+    ) {
+      setCreditAdded(true);
+      sessionStorage.setItem("credits_granted", "true");
+      addCredits({ amount: 5 })
+        .then(() => {
+          window.history.replaceState({}, "", "/");
+        })
+        .catch((err) => {
+          console.error("Failed to add credits:", err);
+          sessionStorage.removeItem("credits_granted");
+        });
+    }
+  }, [searchParams, isAuthenticated, creditAdded, addCredits]);
 
   async function handleUpload(file: File) {
     setIsUploading(true);
@@ -80,9 +104,15 @@ export default function Home() {
             plain-English summaries you can actually understand.
           </p>
           <p className="text-sm text-gray-400 mt-3">
-            First review free, then $2.99/contract
+            5 reviews for $2.99
           </p>
         </div>
+
+        {creditAdded && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 text-center text-sm font-medium">
+            5 review credits added to your account!
+          </div>
+        )}
 
         {/* Upload */}
         <div className="relative">

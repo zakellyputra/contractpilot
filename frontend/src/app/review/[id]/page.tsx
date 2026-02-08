@@ -72,6 +72,7 @@ export default function ReviewPage() {
   const stepIndex = getStepIndex(review.status, clauseCount);
   const isCompleted = review.status === "completed";
   const hasResults = isCompleted || (isProcessing && clauseCount > 0);
+  const isUnlocked = review.unlocked === true;
 
   const mappedClauses = (clauses ?? []).map((c) => ({
     ...c,
@@ -246,12 +247,16 @@ export default function ReviewPage() {
                 review={{ ...review, _id: reviewId }}
                 clauses={topClauses}
                 totalClauseCount={mappedClauses.length}
+                reviewId={reviewId}
+                unlocked={isUnlocked}
               />
             ) : (
               <DeepReviewView
                 pdfUrl={getPdfUrl(reviewId)}
                 clauses={mappedClauses}
                 contractType={review.contractType || "General Contract"}
+                reviewId={reviewId}
+                unlocked={isUnlocked}
               />
             )}
           </>

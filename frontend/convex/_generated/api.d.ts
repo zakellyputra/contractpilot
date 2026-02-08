@@ -10,6 +10,7 @@
 
 import type * as auth from "../auth.js";
 import type * as clauses from "../clauses.js";
+import type * as credits from "../credits.js";
 import type * as http from "../http.js";
 import type * as reviews from "../reviews.js";
 import type * as users from "../users.js";
@@ -23,6 +24,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   clauses: typeof clauses;
+  credits: typeof credits;
   http: typeof http;
   reviews: typeof reviews;
   users: typeof users;

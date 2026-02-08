@@ -6,6 +6,9 @@ import ClausePanel from "./ClausePanel";
 import ClauseChat from "./ClauseChat";
 import PaywallBlur from "./PaywallBlur";
 import { usePlan } from "@/contexts/PlanContext";
+import { useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 
 interface Clause {
   _id: string;
@@ -27,11 +30,24 @@ interface DeepReviewViewProps {
   pdfUrl: string;
   clauses: Clause[];
   contractType: string;
+  reviewId?: string;
+  unlocked?: boolean;
 }
 
-export default function DeepReviewView({ pdfUrl, clauses, contractType }: DeepReviewViewProps) {
+export default function DeepReviewView({ pdfUrl, clauses, contractType, reviewId, unlocked }: DeepReviewViewProps) {
   const [activeClauseId, setActiveClauseId] = useState<string | null>(null);
-  const { isFree } = usePlan();
+  const { isOverride, credits } = usePlan();
+  const isLocked = !unlocked && !isOverride;
+  const unlock = useMutation(api.credits.unlockReview);
+
+  const handleUnlockPdf = async () => {
+    if (!reviewId) return;
+    try {
+      await unlock({ reviewId: reviewId as Id<"reviews"> });
+    } catch (err) {
+      console.error("Unlock error:", err);
+    }
+  };
 
   // Transform clause data into highlight format for the PDF viewer
   const highlights: ClauseHighlight[] = useMemo(() => {
@@ -75,7 +91,9 @@ export default function DeepReviewView({ pdfUrl, clauses, contractType }: DeepRe
           activeClauseId={activeClauseId}
           onClauseHover={handleClauseHover}
           onClauseClick={handleClauseClick}
-          scrollLocked={isFree}
+          scrollLocked={isLocked}
+          credits={credits}
+          onUnlock={handleUnlockPdf}
         />
       </div>
 
@@ -91,7 +109,7 @@ export default function DeepReviewView({ pdfUrl, clauses, contractType }: DeepRe
 
         {/* Bottom: Chat interface */}
         <div className="h-[45%] min-h-[200px] flex flex-col overflow-hidden">
-          <PaywallBlur featureLabel="AI Clause Chat" className="h-full">
+          <PaywallBlur featureLabel="AI Clause Chat" className="h-full" reviewId={reviewId} unlocked={unlocked}>
             <ClauseChat
               activeClauseId={activeClauseId}
               clauses={clauses}

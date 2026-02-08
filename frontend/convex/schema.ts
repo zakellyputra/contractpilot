@@ -31,6 +31,12 @@ export default defineSchema({
     ocrUsed: v.optional(v.boolean()),
     totalClauses: v.optional(v.number()),
     completedClauses: v.optional(v.number()),
+    unlocked: v.optional(v.boolean()),
+  }).index("by_user", ["userId"]),
+
+  userCredits: defineTable({
+    userId: v.string(),
+    credits: v.number(),
   }).index("by_user", ["userId"]),
 
   clauses: defineTable({

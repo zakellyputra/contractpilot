@@ -37,8 +37,8 @@ export default function BillingPage() {
             Simple Pricing
           </h1>
           <p className="text-gray-600 max-w-md mx-auto">
-            Your first contract review is free. After that, each review is just
-            $2.99 — cheaper than a coffee, smarter than a lawyer.
+            Each bundle gives you 5 contract review credits for just $2.99.
+            Unlock any review to see the full AI risk analysis.
           </p>
         </div>
 

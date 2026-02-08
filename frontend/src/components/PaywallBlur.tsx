@@ -1,13 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { usePlan } from "@/contexts/PlanContext";
 import { useRouter } from "next/navigation";
+import { useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 
 interface PaywallBlurProps {
   children: React.ReactNode;
   featureLabel: string;
   blurPx?: number;
   className?: string;
+  reviewId?: string;
+  unlocked?: boolean;
 }
 
 export default function PaywallBlur({
@@ -15,12 +21,32 @@ export default function PaywallBlur({
   featureLabel,
   blurPx = 10,
   className = "",
+  reviewId,
+  unlocked = false,
 }: PaywallBlurProps) {
-  const { isFree } = usePlan();
+  const { isOverride, credits } = usePlan();
   const router = useRouter();
+  const unlock = useMutation(api.credits.unlockReview);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
 
-  if (!isFree) {
+  if (isOverride || unlocked) {
     return <>{children}</>;
+  }
+
+  const hasCredits = credits > 0;
+
+  async function handleUnlock() {
+    if (!reviewId) return;
+    setUnlocking(true);
+    try {
+      await unlock({ reviewId: reviewId as Id<"reviews"> });
+    } catch (err) {
+      console.error("Unlock error:", err);
+    } finally {
+      setUnlocking(false);
+      setShowConfirm(false);
+    }
   }
 
   return (
@@ -48,15 +74,53 @@ export default function PaywallBlur({
           <p className="text-sm font-semibold text-gray-900 mb-1">
             Unlock {featureLabel}
           </p>
-          <p className="text-xs text-gray-500 mb-3">
-            Upgrade to see the full analysis
-          </p>
-          <button
-            onClick={() => router.push("/billing")}
-            className="px-4 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Upgrade - $2.99
-          </button>
+
+          {showConfirm ? (
+            <div className="mt-2">
+              <p className="text-xs text-gray-500 mb-3">
+                Use 1 credit to unlock this review? ({credits - 1} will remain)
+              </p>
+              <div className="flex gap-2 justify-center">
+                <button
+                  onClick={handleUnlock}
+                  disabled={unlocking}
+                  className="px-4 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                >
+                  {unlocking ? "Unlocking..." : "Confirm"}
+                </button>
+                <button
+                  onClick={() => setShowConfirm(false)}
+                  className="px-4 py-2 bg-gray-100 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : hasCredits && reviewId ? (
+            <>
+              <p className="text-xs text-gray-500 mb-3">
+                Use a credit to see the full analysis
+              </p>
+              <button
+                onClick={() => setShowConfirm(true)}
+                className="px-4 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Unlock ({credits} remaining)
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-gray-500 mb-3">
+                Upgrade to see the full analysis
+              </p>
+              <button
+                onClick={() => router.push("/billing")}
+                className="px-4 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Upgrade - $2.99
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
