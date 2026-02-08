@@ -22,7 +22,7 @@ export default function RiskTimeline({ keyDates }: RiskTimelineProps) {
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
         Key Dates & Deadlines
       </h3>
       <div className="space-y-3">
@@ -33,12 +33,12 @@ export default function RiskTimeline({ keyDates }: RiskTimelineProps) {
                 className={`w-3 h-3 rounded-full ${typeColors[kd.type] || "bg-gray-400"}`}
               />
               {i < keyDates.length - 1 && (
-                <div className="w-0.5 h-8 bg-gray-200" />
+                <div className="w-0.5 h-8 bg-gray-200 dark:bg-gray-700" />
               )}
             </div>
             <div className="-mt-0.5">
-              <p className="text-sm font-medium text-gray-900">{kd.label}</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{kd.label}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 {kd.date}
                 <span className="mx-1">·</span>
                 <span className="capitalize">{kd.type}</span>

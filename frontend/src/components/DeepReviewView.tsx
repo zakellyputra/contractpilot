@@ -65,9 +65,9 @@ export default function DeepReviewView({ pdfUrl, clauses, contractType }: DeepRe
   };
 
   return (
-    <div className="flex h-[calc(100vh-180px)] rounded-xl overflow-hidden border border-gray-200 bg-white">
+    <div className="flex h-[calc(100vh-180px)] rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
       {/* Left: PDF Viewer (55%) */}
-      <div className="w-[55%] border-r border-gray-200 overflow-hidden">
+      <div className="w-[55%] border-r border-gray-200 dark:border-gray-700 overflow-hidden">
         <PDFViewer
           pdfUrl={pdfUrl}
           highlights={highlights}
@@ -80,7 +80,7 @@ export default function DeepReviewView({ pdfUrl, clauses, contractType }: DeepRe
       {/* Right column (45%): Clause analysis + Chat */}
       <div className="w-[45%] flex flex-col overflow-hidden">
         {/* Top: Clause analysis panel */}
-        <div className="flex-1 min-h-0 overflow-hidden border-b border-gray-200">
+        <div className="flex-1 min-h-0 overflow-hidden border-b border-gray-200 dark:border-gray-700">
           <ClausePanel
             clauses={clauses}
             activeClauseId={activeClauseId}

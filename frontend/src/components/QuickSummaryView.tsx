@@ -37,9 +37,9 @@ interface QuickSummaryViewProps {
 }
 
 const RISK_BADGE: Record<string, string> = {
-  high: "bg-red-100 text-red-700",
-  medium: "bg-amber-100 text-amber-700",
-  low: "bg-green-100 text-green-700",
+  high: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+  medium: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
+  low: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
 };
 
 export default function QuickSummaryView({ review, clauses, totalClauseCount }: QuickSummaryViewProps) {
@@ -54,10 +54,10 @@ export default function QuickSummaryView({ review, clauses, totalClauseCount }: 
 
       {/* Risk overview: gauge + breakdown side by side */}
       <div className="grid md:grid-cols-2 gap-4">
-        <div className="bg-white border border-gray-200 rounded-xl p-5 flex items-center justify-center">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-5 flex items-center justify-center">
           <RiskScoreGauge score={review.riskScore ?? 0} />
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
           <RiskBreakdownChart
             financial={review.financialRisk ?? 0}
             compliance={review.complianceRisk ?? 0}
@@ -70,17 +70,17 @@ export default function QuickSummaryView({ review, clauses, totalClauseCount }: 
       {/* Top clauses — condensed cards */}
       {clauses.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
             Top Findings ({clauses.length}{totalClauseCount ? ` of ${totalClauseCount}` : ""})
           </h3>
           <div className="space-y-2">
             {clauses.map((clause) => (
               <div
                 key={clause._id}
-                className="bg-white border border-gray-200 rounded-lg p-4"
+                className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4"
               >
                 <div className="flex items-center gap-2 mb-1.5">
-                  <span className="font-medium text-sm text-gray-900">
+                  <span className="font-medium text-sm text-gray-900 dark:text-gray-100">
                     {clause.clauseType || "Clause"}
                   </span>
                   <span
@@ -91,11 +91,11 @@ export default function QuickSummaryView({ review, clauses, totalClauseCount }: 
                     {clause.riskLevel}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 line-clamp-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
                   {clause.explanation}
                 </p>
                 {clause.suggestion && (
-                  <p className="text-xs text-blue-600 mt-1.5">
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1.5">
                     <span className="font-medium">Action:</span> {clause.suggestion}
                   </p>
                 )}
@@ -107,7 +107,7 @@ export default function QuickSummaryView({ review, clauses, totalClauseCount }: 
 
       {/* Action items */}
       {review.actionItems && review.actionItems.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl p-5">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
           <ActionItems items={review.actionItems} />
         </div>
       )}

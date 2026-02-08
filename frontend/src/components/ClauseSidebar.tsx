@@ -23,16 +23,16 @@ interface ClauseSidebarProps {
 }
 
 const RISK_BADGE: Record<string, string> = {
-  high: "bg-red-100 text-red-700 border-red-200",
-  medium: "bg-amber-100 text-amber-700 border-amber-200",
-  low: "bg-green-100 text-green-700 border-green-200",
+  high: "bg-red-100 text-red-700 border-red-200 dark:bg-red-900 dark:text-red-300 dark:border-red-800",
+  medium: "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900 dark:text-amber-300 dark:border-amber-800",
+  low: "bg-green-100 text-green-700 border-green-200 dark:bg-green-900 dark:text-green-300 dark:border-green-800",
 };
 
 const CATEGORY_BADGE: Record<string, string> = {
-  financial: "bg-red-50 text-red-600",
-  compliance: "bg-amber-50 text-amber-600",
-  operational: "bg-blue-50 text-blue-600",
-  reputational: "bg-purple-50 text-purple-600",
+  financial: "bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400",
+  compliance: "bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400",
+  operational: "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400",
+  reputational: "bg-purple-50 text-purple-600 dark:bg-purple-950 dark:text-purple-400",
 };
 
 const RISK_PRIORITY: Record<string, number> = { high: 0, medium: 1, low: 2 };
@@ -144,11 +144,11 @@ export default function ClauseSidebar({
         if (el) cardRefs.current.set(clause._id, el);
       }}
       className={`rounded-lg border p-4 cursor-pointer transition-all duration-150 ${
-        indent ? "ml-4 border-l-2 border-l-blue-200" : ""
+        indent ? "ml-4 border-l-2 border-l-blue-200 dark:border-l-blue-700" : ""
       } ${
         isActive
-          ? "border-blue-400 bg-blue-50 shadow-md ring-1 ring-blue-200"
-          : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm"
+          ? "border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-950 shadow-md ring-1 ring-blue-200 dark:ring-blue-800"
+          : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm"
       }`}
       onMouseEnter={() => onClauseHover(clause._id)}
       onMouseLeave={() => onClauseHover(null)}
@@ -156,7 +156,7 @@ export default function ClauseSidebar({
     >
       {/* Header: type + badges */}
       <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <span className="font-medium text-sm text-gray-900 truncate max-w-[200px]">
+        <span className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate max-w-[200px]">
           {clause.clauseType || "Clause"}
         </span>
         <span
@@ -174,27 +174,27 @@ export default function ClauseSidebar({
           {clause.riskCategory}
         </span>
         {clause.pageNumber !== undefined && (
-          <span className="text-[10px] text-gray-400 ml-auto">
+          <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-auto">
             p.{clause.pageNumber + 1}
           </span>
         )}
       </div>
 
       {/* Explanation */}
-      <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">
+      <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-3">
         {clause.explanation}
       </p>
 
       {/* Concern */}
       {clause.concern && (
-        <div className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
+        <div className="mt-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 rounded px-2 py-1">
           <span className="font-medium">Watch out:</span> {clause.concern}
         </div>
       )}
 
       {/* Suggestion */}
       {clause.suggestion && (
-        <div className="mt-1.5 text-xs text-blue-700 bg-blue-50 rounded px-2 py-1">
+        <div className="mt-1.5 text-xs text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 rounded px-2 py-1">
           <span className="font-medium">Suggestion:</span> {clause.suggestion}
         </div>
       )}
@@ -203,7 +203,7 @@ export default function ClauseSidebar({
 
   return (
     <div className="h-full overflow-y-auto p-4 space-y-3">
-      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-1">
+      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
         Clause Analysis ({clauses.length})
       </h3>
 
@@ -227,11 +227,11 @@ export default function ClauseSidebar({
                       e.stopPropagation();
                       toggleGroup(groupKey);
                     }}
-                    className="absolute top-3 right-3 p-1 rounded hover:bg-gray-100 transition-colors"
+                    className="absolute top-3 right-3 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     title={isExpanded ? "Collapse sub-clauses" : "Expand sub-clauses"}
                   >
                     <svg
-                      className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${
+                      className={`w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${
                         isExpanded ? "rotate-180" : ""
                       }`}
                       fill="none"
@@ -247,7 +247,7 @@ export default function ClauseSidebar({
                 {!isExpanded && (
                   <button
                     onClick={() => toggleGroup(groupKey)}
-                    className="ml-4 mt-1 text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                    className="ml-4 mt-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-1"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

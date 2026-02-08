@@ -51,10 +51,10 @@ export default function RiskDashboard({ review, clauses }: RiskDashboardProps) {
 
       {/* Risk overview: gauge + breakdown side by side */}
       <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-white border border-gray-200 rounded-xl p-6 flex items-center justify-center">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6 flex items-center justify-center">
           <RiskScoreGauge score={review.riskScore ?? 0} />
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
           <RiskBreakdownChart
             financial={review.financialRisk ?? 0}
             compliance={review.complianceRisk ?? 0}
@@ -68,10 +68,10 @@ export default function RiskDashboard({ review, clauses }: RiskDashboardProps) {
       {((review.actionItems && review.actionItems.length > 0) ||
         (review.keyDates && review.keyDates.length > 0)) && (
         <div className="grid md:grid-cols-2 gap-6">
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
             <ActionItems items={review.actionItems || []} />
           </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
             <RiskTimeline keyDates={review.keyDates || []} />
           </div>
         </div>
@@ -80,7 +80,7 @@ export default function RiskDashboard({ review, clauses }: RiskDashboardProps) {
       {/* Clause cards */}
       {clauses.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+          <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
             Clause Analysis ({clauses.length} clauses)
           </h3>
           <div className="space-y-3">

@@ -78,7 +78,7 @@ export default function PDFViewer({
   );
 
   return (
-    <div ref={containerRef} className="h-full overflow-y-auto bg-gray-100 p-4">
+    <div ref={containerRef} className="h-full overflow-y-auto bg-gray-100 dark:bg-gray-800 p-4">
       {/* Tooltip */}
       {tooltip && (
         <div

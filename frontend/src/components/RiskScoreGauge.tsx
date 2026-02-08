@@ -31,7 +31,7 @@ export default function RiskScoreGauge({ score }: RiskScoreGaugeProps) {
             cy="100"
             r={radius}
             fill="none"
-            stroke="#e5e7eb"
+            stroke="var(--gauge-track)"
             strokeWidth="12"
           />
           <circle
@@ -51,7 +51,7 @@ export default function RiskScoreGauge({ score }: RiskScoreGaugeProps) {
           <span className="text-4xl font-bold" style={{ color }}>
             {score}
           </span>
-          <span className="text-gray-500 text-sm">/100</span>
+          <span className="text-gray-500 dark:text-gray-400 text-sm">/100</span>
         </div>
       </div>
       <p className="mt-2 text-lg font-semibold" style={{ color }}>
