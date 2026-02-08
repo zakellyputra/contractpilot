@@ -9,7 +9,10 @@ from fastapi import BackgroundTasks, FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
+from pydantic import BaseModel
+
 from agent import run_contract_analysis
+from chat import chat_about_clause
 from report_generator import generate_pdf_report
 
 # Load .env from the backend directory regardless of cwd
@@ -146,3 +149,24 @@ async def get_report(review_id: str):
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=contractpilot-report.pdf"},
     )
+
+
+class ChatRequest(BaseModel):
+    question: str
+    clause_text: str
+    clause_type: str = "Clause"
+    contract_type: str = "General Contract"
+    chat_history: list[dict] = []
+
+
+@app.post("/chat")
+async def chat_clause(request: ChatRequest):
+    """Chat about a specific clause using Exa research."""
+    result = await chat_about_clause(
+        question=request.question,
+        clause_text=request.clause_text,
+        clause_type=request.clause_type,
+        contract_type=request.contract_type,
+        chat_history=request.chat_history,
+    )
+    return result

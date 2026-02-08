@@ -70,16 +70,7 @@ export default function PDFViewer({
     return () => observer.disconnect();
   }, []);
 
-  // Scroll to active clause's page
-  useEffect(() => {
-    if (!activeClauseId) return;
-    const highlight = highlights.find((h) => h.clauseId === activeClauseId);
-    if (!highlight) return;
-    const pageEl = pageRefs.current.get(highlight.pageNumber);
-    if (pageEl) {
-      pageEl.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [activeClauseId, highlights]);
+  // No auto-scroll — let the user scroll the PDF freely
 
   const getHighlightsForPage = useCallback(
     (pageNum: number) => highlights.filter((h) => h.pageNumber === pageNum),
@@ -156,6 +147,7 @@ export default function PDFViewer({
                     backgroundColor: isActive ? colors.activeBg : colors.bg,
                     border: isActive ? `2px solid ${colors.border}` : "1px solid transparent",
                     borderRadius: 2,
+                    zIndex: 10,
                   }}
                   onMouseEnter={(e) => {
                     onClauseHover(highlight.clauseId);
@@ -172,7 +164,6 @@ export default function PDFViewer({
                     );
                   }}
                   onMouseLeave={() => {
-                    onClauseHover(null);
                     setTooltip(null);
                   }}
                   onClick={() => onClauseClick(highlight.clauseId)}

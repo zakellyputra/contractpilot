@@ -33,6 +33,7 @@ interface Review {
 interface QuickSummaryViewProps {
   review: Review;
   clauses: Clause[];
+  totalClauseCount?: number;
 }
 
 const RISK_BADGE: Record<string, string> = {
@@ -41,7 +42,7 @@ const RISK_BADGE: Record<string, string> = {
   low: "bg-green-100 text-green-700",
 };
 
-export default function QuickSummaryView({ review, clauses }: QuickSummaryViewProps) {
+export default function QuickSummaryView({ review, clauses, totalClauseCount }: QuickSummaryViewProps) {
   return (
     <div className="space-y-6">
       {/* Summary */}
@@ -70,7 +71,7 @@ export default function QuickSummaryView({ review, clauses }: QuickSummaryViewPr
       {clauses.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-            Top Findings ({clauses.length})
+            Top Findings ({clauses.length}{totalClauseCount ? ` of ${totalClauseCount}` : ""})
           </h3>
           <div className="space-y-2">
             {clauses.map((clause) => (

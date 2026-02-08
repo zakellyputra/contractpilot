@@ -43,6 +43,20 @@ export const updateStatus = mutation({
   },
 });
 
+export const updateProgress = mutation({
+  args: {
+    id: v.id("reviews"),
+    totalClauses: v.optional(v.number()),
+    completedClauses: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const patch: Record<string, number> = {};
+    if (args.totalClauses !== undefined) patch.totalClauses = args.totalClauses;
+    if (args.completedClauses !== undefined) patch.completedClauses = args.completedClauses;
+    await ctx.db.patch(args.id, patch);
+  },
+});
+
 export const setResults = mutation({
   args: {
     id: v.id("reviews"),

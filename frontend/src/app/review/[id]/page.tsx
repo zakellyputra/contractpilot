@@ -78,6 +78,16 @@ export default function ReviewPage() {
     _id: c._id as string,
   }));
 
+  // Top 3 highest-risk clauses for Quick Summary
+  const RISK_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+  const topClauses = [...mappedClauses]
+    .sort(
+      (a, b) =>
+        (RISK_ORDER[a.riskLevel] ?? 1) - (RISK_ORDER[b.riskLevel] ?? 1) ||
+        (b.clauseText?.length ?? 0) - (a.clauseText?.length ?? 0)
+    )
+    .slice(0, 3);
+
   return (
     <main className="min-h-screen bg-gray-50">
       <div
@@ -151,11 +161,32 @@ export default function ReviewPage() {
               ))}
             </div>
 
-            {clauseCount > 0 && (
+            {/* Live progress */}
+            {review.totalClauses != null && review.totalClauses > 0 ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">
+                    Analyzing clause {Math.min((review.completedClauses ?? 0) + 1, review.totalClauses)} of {review.totalClauses}...
+                  </span>
+                  <span className="font-medium text-blue-600">
+                    {Math.round(((review.completedClauses ?? 0) / review.totalClauses) * 100)}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${((review.completedClauses ?? 0) / review.totalClauses) * 100}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-400 text-center">
+                  {review.totalClauses} clauses detected
+                </p>
+              </div>
+            ) : clauseCount > 0 ? (
               <p className="text-sm text-blue-600 text-center">
                 {clauseCount} clause{clauseCount !== 1 ? "s" : ""} analyzed so far...
               </p>
-            )}
+            ) : null}
           </div>
         )}
 
@@ -213,12 +244,14 @@ export default function ReviewPage() {
             {viewMode === "quick" ? (
               <QuickSummaryView
                 review={{ ...review, _id: reviewId }}
-                clauses={mappedClauses}
+                clauses={topClauses}
+                totalClauseCount={mappedClauses.length}
               />
             ) : (
               <DeepReviewView
                 pdfUrl={getPdfUrl(reviewId)}
                 clauses={mappedClauses}
+                contractType={review.contractType || "General Contract"}
               />
             )}
           </>

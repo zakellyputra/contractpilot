@@ -27,6 +27,8 @@ export default defineSchema({
     reportUrl: v.optional(v.string()),
     pdfUrl: v.optional(v.string()),
     ocrUsed: v.optional(v.boolean()),
+    totalClauses: v.optional(v.number()),
+    completedClauses: v.optional(v.number()),
   }).index("by_user", ["userId"]),
 
   clauses: defineTable({

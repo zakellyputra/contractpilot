@@ -29,3 +29,25 @@ export function getReportUrl(reviewId: string) {
 export function getPdfUrl(reviewId: string) {
   return `${BACKEND_URL}/pdf/${reviewId}`;
 }
+
+export async function chatAboutClause(
+  question: string,
+  clauseText: string,
+  clauseType: string,
+  contractType: string,
+  chatHistory: { role: string; content: string }[],
+): Promise<{ answer: string; sources: string[] }> {
+  const res = await fetch(`${BACKEND_URL}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question,
+      clause_text: clauseText,
+      clause_type: clauseType,
+      contract_type: contractType,
+      chat_history: chatHistory,
+    }),
+  });
+  if (!res.ok) throw new Error(`Chat failed: ${res.statusText}`);
+  return res.json();
+}

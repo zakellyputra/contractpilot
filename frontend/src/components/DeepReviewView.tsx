@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from "react";
 import PDFViewer, { ClauseHighlight } from "./PDFViewer";
-import ClauseSidebar from "./ClauseSidebar";
+import ClausePanel from "./ClausePanel";
+import ClauseChat from "./ClauseChat";
 
 interface Clause {
   _id: string;
@@ -23,9 +24,10 @@ interface Clause {
 interface DeepReviewViewProps {
   pdfUrl: string;
   clauses: Clause[];
+  contractType: string;
 }
 
-export default function DeepReviewView({ pdfUrl, clauses }: DeepReviewViewProps) {
+export default function DeepReviewView({ pdfUrl, clauses, contractType }: DeepReviewViewProps) {
   const [activeClauseId, setActiveClauseId] = useState<string | null>(null);
 
   // Transform clause data into highlight format for the PDF viewer
@@ -62,8 +64,8 @@ export default function DeepReviewView({ pdfUrl, clauses }: DeepReviewViewProps)
 
   return (
     <div className="flex h-[calc(100vh-180px)] rounded-xl overflow-hidden border border-gray-200 bg-white">
-      {/* Left: PDF Viewer (60%) */}
-      <div className="w-3/5 border-r border-gray-200 overflow-hidden">
+      {/* Left: PDF Viewer (55%) */}
+      <div className="w-[55%] border-r border-gray-200 overflow-hidden">
         <PDFViewer
           pdfUrl={pdfUrl}
           highlights={highlights}
@@ -73,14 +75,24 @@ export default function DeepReviewView({ pdfUrl, clauses }: DeepReviewViewProps)
         />
       </div>
 
-      {/* Right: Clause Sidebar (40%) */}
-      <div className="w-2/5 overflow-hidden">
-        <ClauseSidebar
-          clauses={clauses}
-          activeClauseId={activeClauseId}
-          onClauseHover={handleClauseHover}
-          onClauseClick={handleClauseClick}
-        />
+      {/* Right column (45%): Clause analysis + Chat */}
+      <div className="w-[45%] flex flex-col overflow-hidden">
+        {/* Top: Clause analysis panel */}
+        <div className="flex-1 min-h-0 overflow-hidden border-b border-gray-200">
+          <ClausePanel
+            clauses={clauses}
+            activeClauseId={activeClauseId}
+          />
+        </div>
+
+        {/* Bottom: Chat interface */}
+        <div className="h-[45%] min-h-[200px] flex flex-col overflow-hidden">
+          <ClauseChat
+            activeClauseId={activeClauseId}
+            clauses={clauses}
+            contractType={contractType}
+          />
+        </div>
       </div>
     </div>
   );

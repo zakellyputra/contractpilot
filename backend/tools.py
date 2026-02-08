@@ -174,10 +174,79 @@ def ocr_document(pdf_base64: str) -> str:
     return ocr_pdf(pdf_bytes)
 
 
+def _expand_to_paragraph(page, start_rect, clause_text: str) -> list[dict]:
+    """Expand a single-line rect to cover the full clause paragraph.
+
+    Uses page.get_text("dict") to find consecutive lines that overlap
+    with the clause text, starting from the line containing start_rect.
+
+    Args:
+        page: PyMuPDF page object.
+        start_rect: The fitz.Rect of the first matched snippet.
+        clause_text: Full clause text to match against.
+
+    Returns:
+        List of rect dicts [{x0, y0, x1, y1}] covering the paragraph.
+    """
+    # Get all text blocks/lines on the page
+    page_dict = page.get_text("dict")
+    all_lines = []
+    for block in page_dict.get("blocks", []):
+        if block.get("type") != 0:  # text blocks only
+            continue
+        for line in block.get("lines", []):
+            bbox = line["bbox"]
+            line_text = " ".join(span["text"] for span in line.get("spans", []))
+            all_lines.append({"bbox": bbox, "text": line_text})
+
+    if not all_lines:
+        return [{"x0": start_rect.x0, "y0": start_rect.y0,
+                 "x1": start_rect.x1, "y1": start_rect.y1}]
+
+    # Build a set of words from the clause text for overlap checking
+    clause_words = set(re.findall(r"[a-zA-Z]{3,}", clause_text.lower()[:500]))
+
+    # Find the starting line (the one containing start_rect's y-center)
+    start_y = (start_rect.y0 + start_rect.y1) / 2
+    start_idx = 0
+    min_dist = float("inf")
+    for i, line in enumerate(all_lines):
+        line_y = (line["bbox"][1] + line["bbox"][3]) / 2
+        dist = abs(line_y - start_y)
+        if dist < min_dist:
+            min_dist = dist
+            start_idx = i
+
+    # Collect consecutive lines that overlap with clause words
+    rects = []
+    for i in range(start_idx, min(start_idx + 30, len(all_lines))):
+        line = all_lines[i]
+        line_words = set(re.findall(r"[a-zA-Z]{3,}", line["text"].lower()))
+        overlap = len(line_words & clause_words)
+
+        if i == start_idx:
+            # Always include the start line
+            rects.append({
+                "x0": line["bbox"][0], "y0": line["bbox"][1],
+                "x1": line["bbox"][2], "y1": line["bbox"][3],
+            })
+        elif overlap >= 2 or (overlap >= 1 and len(line_words) <= 3):
+            rects.append({
+                "x0": line["bbox"][0], "y0": line["bbox"][1],
+                "x1": line["bbox"][2], "y1": line["bbox"][3],
+            })
+        else:
+            break  # No more overlap, stop expanding
+
+    return rects if rects else [{"x0": start_rect.x0, "y0": start_rect.y0,
+                                  "x1": start_rect.x1, "y1": start_rect.y1}]
+
+
 def extract_clause_positions(pdf_bytes: bytes, clauses: list[dict]) -> list[dict]:
     """Find the page and bounding boxes for each clause in the PDF.
 
-    Uses PyMuPDF text search to locate each clause's opening text.
+    Uses PyMuPDF text search to locate each clause's opening text,
+    then expands to cover the full paragraph.
 
     Args:
         pdf_bytes: Raw PDF file bytes.
@@ -204,12 +273,11 @@ def extract_clause_positions(pdf_bytes: bytes, clauses: list[dict]) -> list[dict
                 page = doc[page_num]
                 rects = page.search_for(snippet)
                 if rects:
+                    # Expand from the first match to cover the full paragraph
+                    expanded_rects = _expand_to_paragraph(page, rects[0], raw)
                     positions.append({
                         "pageNumber": page_num,
-                        "rects": [
-                            {"x0": r.x0, "y0": r.y0, "x1": r.x1, "y1": r.y1}
-                            for r in rects
-                        ],
+                        "rects": expanded_rects,
                         "pageWidth": page.rect.width,
                         "pageHeight": page.rect.height,
                     })
