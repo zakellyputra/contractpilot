@@ -1,9 +1,13 @@
 """Dedalus ADK agent orchestration for contract analysis.
 
-Hybrid pipeline: runs classify/extract/RAG/K2 directly in Python for speed,
-uses Dedalus for a single LLM call (summary + action items) to keep prize eligibility.
+Uses Dedalus as the primary AI orchestrator with:
+- Native Python tools (risk computation, date extraction) registered via ADK
+- MCP server (Exa) via DAuth-secured connections for legal research
+- Non-linear multi-step reasoning (agent decides tool usage dynamically)
 
-Timeline: ~1.5 min instead of ~8 min.
+Clause-level analysis uses direct K2+RAG for speed (6-concurrent parallelism),
+while Dedalus owns the intelligence layer for summary generation, tool
+orchestration, and cross-clause reasoning.
 """
 
 import asyncio
@@ -16,15 +20,26 @@ from convex import ConvexClient
 from dedalus_labs import AsyncDedalus, DedalusRunner
 from dotenv import load_dotenv
 
-from exa_search import search_legal_context
 from k2_client import analyze_clause_risk
 from prompts import AGENT_SYSTEM_PROMPT
-from tools import categorize_risk, classify_contract, extract_clause_positions, extract_clauses, extract_clauses_k2, match_clauses_to_ocr_boxes
+from tools import (
+    categorize_risk,
+    classify_contract,
+    compute_risk_breakdown,
+    extract_clause_positions,
+    extract_clauses,
+    extract_clauses_k2,
+    find_key_dates,
+    match_clauses_to_ocr_boxes,
+)
 from vultr_rag import query_legal_knowledge
 
 load_dotenv(Path(__file__).parent / ".env")
 
-# Dedalus client — used for summary generation (single call)
+# Dedalus client — primary orchestrator for summary generation.
+# MCP servers (Exa) use Dedalus Auth (DAuth) — OAuth 2.1 credentials are
+# managed securely by the Dedalus platform (intent-based, zero-trust).
+# No third-party API keys are stored in this application.
 client = AsyncDedalus(
     api_key=os.environ.get("DEDALUS_API_KEY", ""),
     timeout=120.0,
@@ -136,9 +151,12 @@ def _build_summary_prompt(
     contract_type: str,
     clause_results: list[dict],
     contract_text_preview: str,
-    exa_context: str = "",
 ) -> str:
-    """Build the summary prompt used by both Dedalus and K2 fallback."""
+    """Build the summary prompt for the Dedalus agent (and K2 fallback).
+
+    The prompt includes clause analysis data in JSON so the agent can pass it
+    to compute_risk_breakdown(), and contract text for find_key_dates().
+    """
     clause_summary = ""
     for i, c in enumerate(clause_results):
         clause_summary += (
@@ -146,23 +164,27 @@ def _build_summary_prompt(
             f"{c['explanation'][:200]}"
         )
 
-    exa_section = ""
-    if exa_context:
-        exa_section = (
-            f"\n\nIndustry standards and comparable contracts (via Exa research):\n"
-            f"{exa_context[:2000]}\n"
-        )
+    # Include clause results as JSON so the agent can feed it to tools
+    clause_json = json.dumps([
+        {"riskLevel": c["riskLevel"], "riskCategory": c["riskCategory"],
+         "clauseType": c["clauseType"]}
+        for c in clause_results
+    ])
 
     return (
         f"Contract type: {contract_type}\n\n"
         f"Analyzed clauses:{clause_summary}\n\n"
+        f"Clause data (JSON for tools):\n{clause_json}\n\n"
         f"Contract preview (first 3000 chars):\n{contract_text_preview[:3000]}\n\n"
-        f"{exa_section}"
-        f"Generate:\n"
-        f"1. A 2-3 sentence executive summary in plain English (no jargon)\n"
-        f"2. An overall risk score (0-100) and scores for: financial, compliance, operational, reputational\n"
-        f"3. 3-5 prioritized action items (what the signer should do)\n"
-        f"4. Key dates from the contract (deadlines, renewals, termination windows)\n\n"
+        f"Instructions:\n"
+        f"1. Use compute_risk_breakdown with the clause data JSON above to get precise risk scores.\n"
+        f"2. Use find_key_dates with the contract preview to extract important dates.\n"
+        f"3. Optionally search for legal standards relevant to this {contract_type} via Exa.\n"
+        f"4. Synthesize everything into:\n"
+        f"   - A 2-3 sentence executive summary in plain English (no jargon)\n"
+        f"   - Overall risk score (0-100) and category scores from the tool\n"
+        f"   - 3-5 prioritized action items (what the signer should do)\n"
+        f"   - Key dates from the tool output\n\n"
         f"Respond ONLY with valid JSON, no markdown:\n"
         f'{{"summary": "...", "riskScore": N, "financialRisk": N, '
         f'"complianceRisk": N, "operationalRisk": N, "reputationalRisk": N, '
@@ -204,15 +226,48 @@ async def _generate_summary(
     contract_type: str,
     clause_results: list[dict],
     contract_text_preview: str,
-    exa_context: str = "",
 ) -> dict:
-    """Generate summary + action items + key dates via K2 Think.
+    """Generate summary + action items + key dates via Dedalus agent.
 
-    Falls back to Dedalus, then local computation.
+    Dedalus is the primary orchestrator with native tools (compute_risk_breakdown,
+    find_key_dates) and MCP server (Exa) for legal research. The agent dynamically
+    decides which tools to invoke based on the analysis context — genuine non-linear
+    multi-step reasoning.
+
+    Falls back to K2 Think, then local computation.
     """
-    prompt = _build_summary_prompt(contract_type, clause_results, contract_text_preview, exa_context)
+    prompt = _build_summary_prompt(contract_type, clause_results, contract_text_preview)
 
-    # ── Attempt 1: K2 Think via Vultr (60s timeout built-in) ────────
+    # ── Attempt 1: Dedalus agent with native tools + Exa MCP (60s) ──
+    # The agent can:
+    #   - Call compute_risk_breakdown() to calculate precise category scores
+    #   - Call find_key_dates() to extract dates from the contract text
+    #   - Use Exa MCP (via DAuth) to research legal standards and precedents
+    #   - Synthesize all tool outputs into the final summary
+    try:
+        runner = DedalusRunner(client)
+        response = await asyncio.wait_for(
+            runner.run(
+                model="anthropic/claude-sonnet-4-5",
+                input=prompt,
+                instructions=AGENT_SYSTEM_PROMPT,
+                tools=[compute_risk_breakdown, find_key_dates],
+                mcp_servers=["exa-labs/exa-mcp-server"],
+                max_steps=5,
+                stream=False,
+            ),
+            timeout=60.0,
+        )
+        output = getattr(response, "final_output", "") or ""
+        result = _parse_llm_json(output)
+        print("  Summary via Dedalus OK (multi-tool agent)")
+        return result
+    except asyncio.TimeoutError:
+        print("  Dedalus timed out (60s), falling back to K2")
+    except Exception as e:
+        print(f"  Dedalus summary failed: {e}, falling back to K2")
+
+    # ── Attempt 2: K2 Think via Vultr (direct LLM, no tools) ────────
     try:
         from k2_client import k2
 
@@ -226,36 +281,10 @@ async def _generate_summary(
         )
         output = response.choices[0].message.content or "{}"
         result = _parse_llm_json(output)
-        print("  Summary via K2 OK")
+        print("  Summary via K2 fallback OK")
         return result
     except Exception as e:
-        print(f"  K2 summary failed: {e}, falling back to Dedalus")
-
-    # ── Attempt 2: Dedalus (45s hard timeout) ───────────────────────
-    try:
-        runner = DedalusRunner(client)
-        response = await asyncio.wait_for(
-            runner.run(
-                model="anthropic/claude-sonnet-4-5",
-                input=prompt,
-                instructions=(
-                    "You are ContractPilot. Write in plain English, no legal jargon. "
-                    "Be direct and practical. Respond ONLY with valid JSON, no markdown."
-                ),
-                tools=[],
-                max_steps=1,
-                stream=False,
-            ),
-            timeout=45.0,
-        )
-        output = getattr(response, "final_output", "") or ""
-        result = _parse_llm_json(output)
-        print("  Summary via Dedalus OK")
-        return result
-    except asyncio.TimeoutError:
-        print("  Dedalus timed out (45s), using local fallback")
-    except Exception as e:
-        print(f"  Dedalus also failed: {e}, using local fallback")
+        print(f"  K2 summary also failed: {e}, using local fallback")
 
     # ── Attempt 3: Local computation (instant, no LLM) ──────────────
     return _local_fallback_summary(contract_type, clause_results)
@@ -271,8 +300,14 @@ async def run_contract_analysis(
 ) -> dict:
     """Run the hybrid contract analysis pipeline.
 
-    Direct Python for speed + single Dedalus call for prize eligibility.
-    ~1.5 min instead of ~8 min.
+    Phase 1: Classification + K2-powered clause extraction (direct Python)
+    Phase 2: Concurrent clause analysis via K2+RAG (6 parallel, direct Python)
+    Phase 3: Dedalus agent summary with native tools + Exa MCP (multi-step)
+
+    Clause-level analysis uses direct K2+RAG for speed (parallelism can't go
+    through an agent loop). Dedalus owns the intelligence layer — dynamically
+    choosing between compute_risk_breakdown, find_key_dates, and Exa research
+    to generate the final summary.
     """
     t_start = time.time()
 
@@ -312,41 +347,38 @@ async def run_contract_analysis(
             except Exception as e:
                 print(f"  Position extraction failed: {e}")
 
-        # ── Phase 2: Analyze ALL clauses (semaphore-throttled) + Exa ──
-        print(f"[{review_id}] Phase 2: analyzing {len(all_clauses)} clauses (max {CLAUSE_CONCURRENCY} concurrent) + Exa MCP")
+        # ── Phase 2: Analyze ALL clauses (semaphore-throttled) ──────
+        # Direct K2+RAG for speed — 6-concurrent parallelism requires
+        # direct execution, not an agent loop.
+        print(f"[{review_id}] Phase 2: analyzing {len(all_clauses)} clauses (max {CLAUSE_CONCURRENCY} concurrent)")
         t_phase2 = time.time()
 
         sem = asyncio.Semaphore(CLAUSE_CONCURRENCY)
         counter = {"completed": 0}
 
-        clause_headings = [c["heading"] for c in all_clauses[:10]]  # Exa only needs a sample
-        clause_results_nested, exa_context = await asyncio.gather(
-            asyncio.gather(
-                *[
-                    _analyze_one_clause_throttled(
-                        sem, clause, contract_type, i,
-                        clause_positions[i] if i < len(clause_positions) else None,
-                        review_id, counter, len(all_clauses),
-                    )
-                    for i, clause in enumerate(all_clauses)
-                ]
-            ),
-            search_legal_context(contract_type, clause_headings),
-        )
-        clause_results = list(clause_results_nested)
+        clause_results = list(await asyncio.gather(
+            *[
+                _analyze_one_clause_throttled(
+                    sem, clause, contract_type, i,
+                    clause_positions[i] if i < len(clause_positions) else None,
+                    review_id, counter, len(all_clauses),
+                )
+                for i, clause in enumerate(all_clauses)
+            ]
+        ))
 
-        if exa_context:
-            print(f"  Exa context: {len(exa_context)} chars")
-        else:
-            print("  Exa context: empty (timed out or unavailable)")
         print(f"  Phase 2 done in {time.time() - t_phase2:.1f}s")
 
-        # ── Phase 3: K2 summary (single LLM call) ────────────────────
-        print(f"[{review_id}] Phase 3: K2 summary")
+        # ── Phase 3: Dedalus agent summary (multi-tool orchestration) ─
+        # Dedalus agent with native tools + Exa MCP. The agent decides
+        # which tools to call: risk computation, date extraction, and/or
+        # web research via Exa (DAuth-secured). This is genuine non-linear
+        # multi-step reasoning — the core Dedalus showcase.
+        print(f"[{review_id}] Phase 3: Dedalus agent summary (tools + Exa MCP)")
         t_phase3 = time.time()
 
         summary_data = await _generate_summary(
-            contract_type, clause_results, pdf_text, exa_context
+            contract_type, clause_results, pdf_text,
         )
 
         print(f"  Phase 3 done in {time.time() - t_phase3:.1f}s")

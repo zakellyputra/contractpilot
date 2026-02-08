@@ -366,6 +366,124 @@ def categorize_risk(clause_text: str, clause_type: str) -> dict:
         return {"category": "operational", "rationale": "General operational clause"}
 
 
+def compute_risk_breakdown(clause_results_json: str) -> str:
+    """Compute risk category breakdown scores from analyzed clause results.
+
+    Calculates weighted financial, compliance, operational, and reputational
+    risk scores based on clause-level analysis. High-risk clauses contribute
+    more weight to their category score.
+
+    Args:
+        clause_results_json: JSON array of analyzed clauses, each with
+            riskLevel ('high'|'medium'|'low') and riskCategory
+            ('financial'|'compliance'|'operational'|'reputational').
+
+    Returns:
+        JSON object with category scores (0-100), overall score, and distribution.
+    """
+    try:
+        clauses = json.loads(clause_results_json)
+    except (json.JSONDecodeError, TypeError):
+        return json.dumps({"error": "Invalid JSON input"})
+
+    risk_weights = {"high": 85, "medium": 50, "low": 15}
+    categories = {
+        "financial": [], "compliance": [],
+        "operational": [], "reputational": [],
+    }
+
+    for c in clauses:
+        cat = c.get("riskCategory", "operational")
+        level = c.get("riskLevel", "medium")
+        score = risk_weights.get(level, 50)
+        if cat in categories:
+            categories[cat].append(score)
+        # Every clause also contributes partially to its level
+        categories.setdefault(cat, []).append(score)
+
+    result = {}
+    all_scores = []
+    for cat, scores in categories.items():
+        if scores:
+            avg = int(sum(scores) / len(scores))
+            result[f"{cat}Risk"] = avg
+            all_scores.extend(scores)
+        else:
+            result[f"{cat}Risk"] = 25  # default low if no clauses in category
+
+    result["riskScore"] = int(sum(all_scores) / len(all_scores)) if all_scores else 50
+    result["distribution"] = {
+        cat: len(scores) for cat, scores in categories.items()
+    }
+    result["totalClauses"] = len(clauses)
+
+    return json.dumps(result)
+
+
+def find_key_dates(contract_text: str) -> str:
+    """Extract dates, deadlines, and time-sensitive terms from contract text.
+
+    Searches for date patterns (MM/DD/YYYY, Month DD YYYY, etc.), renewal
+    windows, termination notice periods, and milestone deadlines.
+
+    Args:
+        contract_text: The full contract text to search for dates.
+
+    Returns:
+        JSON array of date objects with date, label, and type fields.
+    """
+    dates = []
+    text = contract_text[:10000]  # cap for performance
+
+    # Date patterns: "January 1, 2025", "01/01/2025", "2025-01-01"
+    date_pattern = re.compile(
+        r"(?:(?:January|February|March|April|May|June|July|August|September|"
+        r"October|November|December)\s+\d{1,2},?\s+\d{4})"
+        r"|(?:\d{1,2}/\d{1,2}/\d{2,4})"
+        r"|(?:\d{4}-\d{2}-\d{2})"
+    )
+
+    # Find dates with surrounding context
+    for match in date_pattern.finditer(text):
+        date_str = match.group()
+        start = max(0, match.start() - 100)
+        end = min(len(text), match.end() + 100)
+        context = text[start:end].replace("\n", " ").strip()
+
+        # Classify the date type
+        ctx_lower = context.lower()
+        if any(w in ctx_lower for w in ["terminat", "expir", "end date"]):
+            dtype = "termination"
+        elif any(w in ctx_lower for w in ["renew", "extend", "auto-renew"]):
+            dtype = "renewal"
+        elif any(w in ctx_lower for w in ["deadline", "due", "by", "no later than"]):
+            dtype = "deadline"
+        elif any(w in ctx_lower for w in ["effective", "commence", "start"]):
+            dtype = "milestone"
+        else:
+            dtype = "milestone"
+
+        # Extract a label from context
+        label_start = max(0, match.start() - 60)
+        label_text = text[label_start:match.end()].replace("\n", " ").strip()
+        # Take the sentence fragment containing the date
+        sentences = re.split(r"[.;]", label_text)
+        label = sentences[-1].strip() if sentences else label_text
+        label = label[:120]
+
+        dates.append({"date": date_str, "label": label, "type": dtype})
+
+    # Deduplicate by date string
+    seen = set()
+    unique = []
+    for d in dates:
+        if d["date"] not in seen:
+            seen.add(d["date"])
+            unique.append(d)
+
+    return json.dumps(unique[:15])  # cap at 15 dates
+
+
 def format_review_report(
     contract_type: str,
     clauses: list[dict],

@@ -1,12 +1,16 @@
 """Exa MCP search integration via Dedalus ADK.
 
-Runs a single Dedalus agent call with the exa-labs/exa-mcp-server MCP
-to find similar contracts and legal standards. Non-blocking — returns
-empty string on any failure.
+DEPRECATED: Exa search is now integrated directly into the Dedalus summary
+agent (agent.py) and chat agent (chat.py) via MCP server registration.
+The agents invoke Exa organically through their multi-step tool loops.
+
+This module is kept for backward compatibility but is no longer called
+by the main pipeline.
 """
 
 import asyncio
 import os
+import warnings
 from pathlib import Path
 
 from dedalus_labs import AsyncDedalus, DedalusRunner
@@ -14,7 +18,6 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent / ".env")
 
-# Separate client for Exa MCP calls (avoids shared-state with agent.py client)
 _exa_client = AsyncDedalus(
     api_key=os.environ.get("DEDALUS_API_KEY", ""),
     timeout=30.0,
@@ -29,16 +32,16 @@ async def search_legal_context(
 ) -> str:
     """Search Exa for legal context about this contract type and its clauses.
 
-    Uses Dedalus MCP integration with exa-labs/exa-mcp-server.
-    Non-blocking: returns empty string on any failure or timeout.
-
-    Args:
-        contract_type: Type of contract (e.g., "NDA", "Lease Agreement").
-        clause_headings: Short descriptions of the top clauses.
-
-    Returns:
-        Exa search results as a formatted string, or empty string on failure.
+    DEPRECATED: Use the Dedalus summary agent with mcp_servers=["exa-labs/exa-mcp-server"]
+    instead. The agent handles Exa research as part of its multi-step reasoning.
     """
+    warnings.warn(
+        "search_legal_context is deprecated. Exa search is now handled by the "
+        "Dedalus summary agent via MCP server integration.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
     if not os.environ.get("DEDALUS_API_KEY"):
         return ""
 
