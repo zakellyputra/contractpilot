@@ -29,7 +29,7 @@ export default function RiskBreakdownChart({
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
         Risk by Category
       </h3>
       {categories.map((cat) => {
@@ -44,14 +44,14 @@ export default function RiskBreakdownChart({
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex justify-between items-center mb-1">
-                <span className="text-sm font-medium text-gray-700">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {cat.label}
                 </span>
                 <span className="text-sm font-bold" style={{ color: cat.color }}>
                   {score}
                 </span>
               </div>
-              <div className="w-full bg-gray-100 rounded-full h-2.5">
+              <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2.5">
                 <div
                   className="h-2.5 rounded-full transition-all duration-1000 ease-out"
                   style={{

@@ -28,8 +28,21 @@ def extract_clauses(contract_text: str) -> list[dict]:
         List of dicts with 'text' and 'heading' for each clause.
     """
     clauses = []
-    # Split on common section patterns: "1.", "Section 1", "ARTICLE I", etc.
-    pattern = r"(?:^|\n)(?=\d+[\.\)]\s|Section\s+\d|ARTICLE\s+[IVX\d]|[A-Z][A-Z\s]{3,}:)"
+    # Split on common section patterns:
+    #   "1.1", "2.14" (decimal numbering — common in legal docs)
+    #   "1.", "2)" (single-level numbering)
+    #   "Section 1", "ARTICLE I"
+    #   "ALL CAPS HEADING:"
+    pattern = (
+        r"(?:^|\n)"
+        r"(?="
+        r"\d+\.\d+(?:\.\d+)*[\.\)]*\s"   # 1.1, 2.14, 1.2.3 (decimal)
+        r"|\d+[\.\)]\s"                    # 1., 2) (single-level)
+        r"|Section\s+\d"                    # Section 1
+        r"|ARTICLE\s+[IVX\d]"              # ARTICLE I, ARTICLE 1
+        r"|[A-Z][A-Z\s]{3,}:"              # ALL CAPS HEADING:
+        r")"
+    )
     sections = re.split(pattern, contract_text)
 
     for section in sections:
@@ -37,9 +50,13 @@ def extract_clauses(contract_text: str) -> list[dict]:
         if len(section) < 30:
             continue
 
-        # Extract heading from first line
-        lines = section.split("\n", 1)
+        # Extract heading from first line; if it's just a number (e.g. "1.2"),
+        # combine with the next line to form a descriptive heading
+        lines = section.split("\n", 2)
         heading = lines[0].strip()[:100]
+        if re.match(r"^\d+[\.\d]*[\.\)]*$", heading) and len(lines) > 1:
+            next_line = lines[1].strip()[:80]
+            heading = f"{heading} {next_line}"[:100]
         text = section[:3000]  # Cap clause length
 
         clauses.append({"heading": heading, "text": text})
@@ -54,6 +71,231 @@ def extract_clauses(contract_text: str) -> list[dict]:
             clauses.append({"heading": f"Section {i + 1}", "text": para[:3000]})
 
     return clauses
+
+
+MAX_CLAUSES = 60  # Hard cap on total clauses (including sub-clauses)
+
+
+def _cap_clauses(clauses: list[dict], limit: int = MAX_CLAUSES) -> list[dict]:
+    """Cap clause list to limit, prioritizing top-level clauses over sub-clauses.
+
+    Ensures broad document coverage by keeping all top-level clauses first,
+    then filling remaining slots with sub-clauses in order.
+    """
+    if len(clauses) <= limit:
+        return clauses
+
+    top_level = [c for c in clauses if not c.get("parentHeading")]
+    sub_clauses = [c for c in clauses if c.get("parentHeading")]
+
+    if len(top_level) >= limit:
+        return top_level[:limit]
+
+    remaining = limit - len(top_level)
+    kept_subs = sub_clauses[:remaining]
+
+    # Rebuild in original order
+    kept_set = set(id(c) for c in top_level) | set(id(c) for c in kept_subs)
+    return [c for c in clauses if id(c) in kept_set]
+
+
+_SUB_CLAUSE_PATTERN = re.compile(
+    r"(?:^|\n)\s*(?:"
+    r"\d+\.\d+[\.\)]*\s"           # 3.1, 3.1., 3.1)
+    r"|\([a-z]\)\s"                 # (a), (b)
+    r"|\([ivxlc]+\)\s"             # (i), (ii), (iv)
+    r"|\([A-Z]\)\s"                 # (A), (B)
+    r"|[a-z][\.\)]\s"              # a., b)
+    r"|\d+\.\d+\.\d+[\.\)]*\s"    # 3.1.1, 3.1.1.
+    r")",
+    re.MULTILINE,
+)
+
+
+def split_into_subclauses(clauses: list[dict]) -> list[dict]:
+    """Split clauses that contain sub-parts into individual sub-clause entries.
+
+    Detects sub-clause patterns like 3.1, 3.2, (a), (b), (i), (ii) within
+    each clause's text. Clauses with detected sub-parts are expanded into
+    separate entries with a parentHeading field.
+
+    Args:
+        clauses: List of clause dicts with 'heading' and 'text'.
+
+    Returns:
+        Expanded list where multi-part clauses are split into sub-entries.
+    """
+    result = []
+    for clause in clauses:
+        text = clause["text"]
+        heading = clause["heading"]
+
+        matches = list(_SUB_CLAUSE_PATTERN.finditer(text))
+
+        # If fewer than 2 sub-parts found, keep clause as-is
+        if len(matches) < 2:
+            result.append(clause)
+            continue
+
+        # Keep preamble text (before first sub-clause) as standalone entry
+        preamble_end = matches[0].start()
+        preamble = text[:preamble_end].strip()
+        if len(preamble) > 30:
+            result.append({
+                "heading": heading,
+                "text": preamble[:3000],
+            })
+
+        # Split into individual sub-clauses
+        for i, match in enumerate(matches):
+            start = match.start()
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            sub_text = text[start:end].strip()
+
+            if len(sub_text) < 20:
+                continue
+
+            sub_lines = sub_text.split("\n", 1)
+            sub_heading = sub_lines[0].strip()[:100]
+
+            result.append({
+                "heading": sub_heading,
+                "text": sub_text[:3000],
+                "parentHeading": heading,
+                "subClauseIndex": i,
+            })
+
+    return result
+
+
+async def extract_clauses_k2(contract_text: str) -> list[dict]:
+    """Extract clauses using full-text regex + K2 intelligent filtering.
+
+    For short documents (< 6000 chars): sends full text to K2 directly,
+    then splits sub-clauses.
+    For large documents: runs regex on full text, splits sub-clauses,
+    then uses K2 to filter out non-substantive sections.
+
+    Args:
+        contract_text: The full contract text.
+
+    Returns:
+        List of dicts with 'text' and 'heading' for each clause.
+        Sub-clause entries also have 'parentHeading' and 'subClauseIndex'.
+    """
+    from k2_client import k2
+
+    # ── Short documents: K2 single-pass (existing proven approach) ────
+    if len(contract_text) <= 6000:
+        prompt = (
+            "You are a contract analyst. Given the contract text below, identify ONLY "
+            "the actual numbered or titled clauses/sections that contain substantive "
+            "legal terms and obligations.\n\n"
+            "EXCLUDE:\n"
+            "- Preambles, recitals, 'WHEREAS' sections\n"
+            "- Title pages, headers, footers\n"
+            "- Signature blocks, witness sections, acknowledgments\n"
+            "- 'KNOW ALL MEN BY THESE PRESENTS' and similar boilerplate\n\n"
+            "For each clause, return its heading (the section number and title) and its "
+            "full text.\n\n"
+            f"CONTRACT TEXT:\n{contract_text}\n\n"
+            "Respond ONLY with a valid JSON array. No markdown, no explanation:\n"
+            '[{"heading": "1. Scope of Work", "text": "full clause text here..."}, ...]'
+        )
+
+        try:
+            response = await k2.chat.completions.create(
+                model="kimi-k2-instruct",
+                messages=[
+                    {"role": "system", "content": "Extract contract clauses. Return JSON only."},
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=2048,
+            )
+            content = response.choices[0].message.content or "[]"
+
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0]
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0]
+
+            clauses = json.loads(content.strip())
+
+            if isinstance(clauses, list) and len(clauses) > 0:
+                validated = []
+                for c in clauses:
+                    if isinstance(c, dict) and "text" in c:
+                        validated.append({
+                            "heading": c.get("heading", "Clause")[:100],
+                            "text": c["text"][:3000],
+                        })
+                if validated:
+                    return _cap_clauses(split_into_subclauses(validated))
+        except Exception as e:
+            print(f"  K2 clause extraction failed: {e}, falling back to regex")
+
+        return _cap_clauses(split_into_subclauses(extract_clauses(contract_text)))
+
+    # ── Large documents: hybrid regex-first + K2 filtering ────────────
+    print(f"  Large document ({len(contract_text)} chars), using hybrid extraction")
+
+    # Step A: Full-text regex extraction (instant, no limits)
+    raw_clauses = extract_clauses(contract_text)
+    print(f"  Regex extracted {len(raw_clauses)} top-level sections")
+
+    # Step B: Split into sub-clauses
+    expanded = split_into_subclauses(raw_clauses)
+    print(f"  After sub-clause split: {len(expanded)} total entries")
+
+    # Step C: Build compact TOC for K2 filtering
+    toc_lines = []
+    for i, c in enumerate(expanded):
+        prefix = f"  (sub of: {c['parentHeading'][:40]})" if c.get("parentHeading") else ""
+        preview = c["text"][:150].replace("\n", " ")
+        toc_lines.append(f"{i}: {c['heading'][:60]}{prefix} | {preview}")
+
+    toc = "\n".join(toc_lines)
+
+    # Step D: K2 filters the TOC
+    filter_prompt = (
+        "You are a contract analyst. Below is a table of contents of sections "
+        "extracted from a contract. Each line has format: INDEX: HEADING | PREVIEW\n\n"
+        "Return a JSON object with:\n"
+        '- "keep": list of index numbers to KEEP (substantive clauses with legal obligations)\n'
+        '- "remove": list of index numbers to REMOVE (preambles, signatures, boilerplate, '
+        "table of contents, headers, footers, blank sections, witness blocks)\n\n"
+        f"TABLE OF CONTENTS ({len(expanded)} sections):\n{toc}\n\n"
+        'Respond ONLY with valid JSON: {"keep": [0, 2, 3], "remove": [1, 4]}'
+    )
+
+    try:
+        response = await k2.chat.completions.create(
+            model="kimi-k2-instruct",
+            messages=[
+                {"role": "system", "content": "Filter contract sections. Return JSON only."},
+                {"role": "user", "content": filter_prompt},
+            ],
+            max_tokens=512,
+        )
+        content = response.choices[0].message.content or "{}"
+
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0]
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0]
+
+        filter_result = json.loads(content.strip())
+        keep_indices = set(filter_result.get("keep", range(len(expanded))))
+
+        filtered = [expanded[i] for i in range(len(expanded)) if i in keep_indices]
+        print(f"  K2 filtered to {len(filtered)} clauses (removed {len(expanded) - len(filtered)})")
+
+        if filtered:
+            return _cap_clauses(filtered)
+    except Exception as e:
+        print(f"  K2 filtering failed: {e}, using all regex-extracted clauses")
+
+    return _cap_clauses(expanded)
 
 
 def classify_contract(contract_text: str) -> str:
@@ -122,6 +364,124 @@ def categorize_risk(clause_text: str, clause_type: str) -> dict:
         return {"category": "operational", "rationale": "Contains operational restrictions"}
     else:
         return {"category": "operational", "rationale": "General operational clause"}
+
+
+def compute_risk_breakdown(clause_results_json: str) -> str:
+    """Compute risk category breakdown scores from analyzed clause results.
+
+    Calculates weighted financial, compliance, operational, and reputational
+    risk scores based on clause-level analysis. High-risk clauses contribute
+    more weight to their category score.
+
+    Args:
+        clause_results_json: JSON array of analyzed clauses, each with
+            riskLevel ('high'|'medium'|'low') and riskCategory
+            ('financial'|'compliance'|'operational'|'reputational').
+
+    Returns:
+        JSON object with category scores (0-100), overall score, and distribution.
+    """
+    try:
+        clauses = json.loads(clause_results_json)
+    except (json.JSONDecodeError, TypeError):
+        return json.dumps({"error": "Invalid JSON input"})
+
+    risk_weights = {"high": 85, "medium": 50, "low": 15}
+    categories = {
+        "financial": [], "compliance": [],
+        "operational": [], "reputational": [],
+    }
+
+    for c in clauses:
+        cat = c.get("riskCategory", "operational")
+        level = c.get("riskLevel", "medium")
+        score = risk_weights.get(level, 50)
+        if cat in categories:
+            categories[cat].append(score)
+        # Every clause also contributes partially to its level
+        categories.setdefault(cat, []).append(score)
+
+    result = {}
+    all_scores = []
+    for cat, scores in categories.items():
+        if scores:
+            avg = int(sum(scores) / len(scores))
+            result[f"{cat}Risk"] = avg
+            all_scores.extend(scores)
+        else:
+            result[f"{cat}Risk"] = 25  # default low if no clauses in category
+
+    result["riskScore"] = int(sum(all_scores) / len(all_scores)) if all_scores else 50
+    result["distribution"] = {
+        cat: len(scores) for cat, scores in categories.items()
+    }
+    result["totalClauses"] = len(clauses)
+
+    return json.dumps(result)
+
+
+def find_key_dates(contract_text: str) -> str:
+    """Extract dates, deadlines, and time-sensitive terms from contract text.
+
+    Searches for date patterns (MM/DD/YYYY, Month DD YYYY, etc.), renewal
+    windows, termination notice periods, and milestone deadlines.
+
+    Args:
+        contract_text: The full contract text to search for dates.
+
+    Returns:
+        JSON array of date objects with date, label, and type fields.
+    """
+    dates = []
+    text = contract_text[:10000]  # cap for performance
+
+    # Date patterns: "January 1, 2025", "01/01/2025", "2025-01-01"
+    date_pattern = re.compile(
+        r"(?:(?:January|February|March|April|May|June|July|August|September|"
+        r"October|November|December)\s+\d{1,2},?\s+\d{4})"
+        r"|(?:\d{1,2}/\d{1,2}/\d{2,4})"
+        r"|(?:\d{4}-\d{2}-\d{2})"
+    )
+
+    # Find dates with surrounding context
+    for match in date_pattern.finditer(text):
+        date_str = match.group()
+        start = max(0, match.start() - 100)
+        end = min(len(text), match.end() + 100)
+        context = text[start:end].replace("\n", " ").strip()
+
+        # Classify the date type
+        ctx_lower = context.lower()
+        if any(w in ctx_lower for w in ["terminat", "expir", "end date"]):
+            dtype = "termination"
+        elif any(w in ctx_lower for w in ["renew", "extend", "auto-renew"]):
+            dtype = "renewal"
+        elif any(w in ctx_lower for w in ["deadline", "due", "by", "no later than"]):
+            dtype = "deadline"
+        elif any(w in ctx_lower for w in ["effective", "commence", "start"]):
+            dtype = "milestone"
+        else:
+            dtype = "milestone"
+
+        # Extract a label from context
+        label_start = max(0, match.start() - 60)
+        label_text = text[label_start:match.end()].replace("\n", " ").strip()
+        # Take the sentence fragment containing the date
+        sentences = re.split(r"[.;]", label_text)
+        label = sentences[-1].strip() if sentences else label_text
+        label = label[:120]
+
+        dates.append({"date": date_str, "label": label, "type": dtype})
+
+    # Deduplicate by date string
+    seen = set()
+    unique = []
+    for d in dates:
+        if d["date"] not in seen:
+            seen.add(d["date"])
+            unique.append(d)
+
+    return json.dumps(unique[:15])  # cap at 15 dates
 
 
 def format_review_report(
@@ -296,6 +656,113 @@ def extract_clause_positions(pdf_bytes: bytes, clauses: list[dict]) -> list[dict
             })
 
     doc.close()
+    return positions
+
+
+def match_clauses_to_ocr_boxes(
+    clauses: list[dict],
+    ocr_words: list[dict],
+    pdf_bytes: bytes,
+) -> list[dict]:
+    """Match clause text to OCR word bounding boxes for scanned PDFs.
+
+    Uses fuzzy sliding-window matching to find clause positions from
+    OCR word data, then groups words into line-level highlight rects.
+
+    Args:
+        clauses: List of clause dicts with 'text' and 'heading'.
+        ocr_words: Flat list of word dicts from ocr_pdf_with_positions().
+        pdf_bytes: Raw PDF bytes (used to get page dimensions).
+
+    Returns:
+        List of position dicts matching extract_clause_positions() format.
+    """
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    page_dims = {}
+    for i in range(len(doc)):
+        page_dims[i] = {"width": doc[i].rect.width, "height": doc[i].rect.height}
+    doc.close()
+
+    positions = []
+
+    for clause in clauses:
+        raw = clause["text"].strip()
+        clause_words_lower = re.findall(r"[a-z0-9]+", raw[:200].lower())
+        if len(clause_words_lower) < 3:
+            positions.append({
+                "pageNumber": 0, "rects": [],
+                "pageWidth": 612, "pageHeight": 792,
+            })
+            continue
+
+        # Sliding window: match first 8 words of clause against OCR words
+        target = clause_words_lower[:8]
+        best_idx = -1
+        best_score = 0
+
+        for i in range(len(ocr_words) - len(target)):
+            score = 0
+            for j, tw in enumerate(target):
+                if i + j < len(ocr_words) and ocr_words[i + j]["text"].lower().startswith(tw[:4]):
+                    score += 1
+            if score > best_score:
+                best_score = score
+                best_idx = i
+
+        if best_score < 3 or best_idx < 0:
+            positions.append({
+                "pageNumber": 0, "rects": [],
+                "pageWidth": 612, "pageHeight": 792,
+            })
+            continue
+
+        # Collect words from match point (~40 words on same page)
+        page_num = ocr_words[best_idx]["page"]
+        matched_words = []
+        for k in range(best_idx, min(best_idx + 40, len(ocr_words))):
+            w = ocr_words[k]
+            if w["page"] != page_num:
+                break
+            matched_words.append(w)
+
+        if not matched_words:
+            dims = page_dims.get(page_num, {"width": 612, "height": 792})
+            positions.append({
+                "pageNumber": page_num, "rects": [],
+                "pageWidth": dims["width"], "pageHeight": dims["height"],
+            })
+            continue
+
+        # Group words into line-level rects (merge words with similar y)
+        lines = []
+        current_line = [matched_words[0]]
+        for w in matched_words[1:]:
+            prev_y = (current_line[-1]["y0"] + current_line[-1]["y1"]) / 2
+            curr_y = (w["y0"] + w["y1"]) / 2
+            if abs(curr_y - prev_y) < 8:
+                current_line.append(w)
+            else:
+                lines.append(current_line)
+                current_line = [w]
+        lines.append(current_line)
+
+        rects = []
+        for line_words in lines:
+            rects.append({
+                "x0": min(w["x0"] for w in line_words),
+                "y0": min(w["y0"] for w in line_words),
+                "x1": max(w["x1"] for w in line_words),
+                "y1": max(w["y1"] for w in line_words),
+            })
+
+        dims = page_dims.get(page_num, {"width": 612, "height": 792})
+        positions.append({
+            "pageNumber": page_num,
+            "rects": rects,
+            "pageWidth": dims["width"],
+            "pageHeight": dims["height"],
+        })
+
     return positions
 
 

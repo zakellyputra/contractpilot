@@ -2,11 +2,15 @@ import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 
 export const list = query({
-  args: { userId: v.string() },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const userId = identity.tokenIdentifier;
     return await ctx.db
       .query("reviews")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .order("desc")
       .collect();
   },
@@ -15,7 +19,15 @@ export const list = query({
 export const get = query({
   args: { id: v.id("reviews") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
+    const review = await ctx.db.get(args.id);
+    if (!review) return null;
+
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || review.userId !== identity.tokenIdentifier) {
+      return null;
+    }
+
+    return review;
   },
 });
 

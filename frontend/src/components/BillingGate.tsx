@@ -17,10 +17,10 @@ export default function BillingGate({
   if (balance && balance.availableBalance <= 0) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
           Free review used
         </h2>
-        <p className="text-gray-600 mb-6">
+        <p className="text-gray-600 dark:text-gray-400 mb-6">
           Upgrade to continue reviewing contracts at $2.99 each.
         </p>
         <button

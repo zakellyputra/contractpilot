@@ -31,6 +31,9 @@ interface PDFViewerProps {
   activeClauseId: string | null;
   onClauseHover: (clauseId: string | null) => void;
   onClauseClick: (clauseId: string) => void;
+  scrollLocked?: boolean;
+  credits?: number;
+  onUnlock?: () => void;
 }
 
 const RISK_COLORS: Record<string, { bg: string; activeBg: string; border: string }> = {
@@ -45,6 +48,9 @@ export default function PDFViewer({
   activeClauseId,
   onClauseHover,
   onClauseClick,
+  scrollLocked = false,
+  credits = 0,
+  onUnlock,
 }: PDFViewerProps) {
   const [numPages, setNumPages] = useState(0);
   const [containerWidth, setContainerWidth] = useState(600);
@@ -78,7 +84,12 @@ export default function PDFViewer({
   );
 
   return (
-    <div ref={containerRef} className="h-full overflow-y-auto bg-gray-100 p-4">
+    <div
+      ref={containerRef}
+      className={`h-full bg-gray-100 dark:bg-gray-800 p-4 ${
+        scrollLocked ? "overflow-hidden relative" : "overflow-y-auto"
+      }`}
+    >
       {/* Tooltip */}
       {tooltip && (
         <div
@@ -173,6 +184,43 @@ export default function PDFViewer({
           </div>
         ))}
       </Document>
+
+      {scrollLocked && numPages > 0 && (
+        <>
+          {/* Progressive Gaussian blur — fades in gradually */}
+          <div
+            className="absolute bottom-0 left-0 right-0 z-30"
+            style={{
+              height: "35%",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              maskImage:
+                "linear-gradient(to bottom, transparent 0%, black 50%, black 100%)",
+              WebkitMaskImage:
+                "linear-gradient(to bottom, transparent 0%, black 50%, black 100%)",
+              background:
+                "linear-gradient(to bottom, transparent 0%, rgba(255,255,255,0.5) 40%, rgba(255,255,255,0.85) 100%)",
+            }}
+          />
+          <div className="absolute bottom-4 left-0 right-0 flex justify-center z-40">
+            {credits > 0 && onUnlock ? (
+              <button
+                onClick={onUnlock}
+                className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
+              >
+                Unlock Full Document ({credits} credits remaining)
+              </button>
+            ) : (
+              <button
+                onClick={() => (window.location.href = "/billing")}
+                className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-lg"
+              >
+                Upgrade - $2.99
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

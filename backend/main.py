@@ -36,22 +36,24 @@ app.add_middleware(
 convex = ConvexClient(os.environ.get("CONVEX_URL", ""))
 
 
-def extract_text(file_bytes: bytes, filename: str, use_ocr: bool) -> tuple[str, bool]:
-    """Extract text from a PDF or DOCX file. Returns (text, ocr_used).
+def extract_text(file_bytes: bytes, filename: str, use_ocr: bool) -> tuple[str, bool, list]:
+    """Extract text from a PDF or DOCX file. Returns (text, ocr_used, ocr_words).
 
     For PDFs: uses PyMuPDF direct extraction, or Tesseract OCR if use_ocr is True.
     For DOCX: uses python-docx (OCR is never needed).
+    ocr_words is a list of word dicts with positions (empty if OCR not used).
     """
     if filename.lower().endswith(".docx"):
         from docx_extractor import extract_docx_text
 
-        return extract_docx_text(file_bytes), False
+        return extract_docx_text(file_bytes), False, []
 
     # PDF path — use Tesseract if user toggled OCR on
     if use_ocr:
-        from ocr import ocr_pdf
+        from ocr import ocr_pdf_with_positions
 
-        return ocr_pdf(file_bytes), True
+        text, words = ocr_pdf_with_positions(file_bytes)
+        return text, True, words
 
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     text = ""
@@ -59,13 +61,13 @@ def extract_text(file_bytes: bytes, filename: str, use_ocr: bool) -> tuple[str, 
         text += page.get_text()
     doc.close()
 
-    return text, False
+    return text, False, []
 
 
-async def _run_analysis(review_id: str, pdf_text: str, pdf_bytes: bytes, user_id: str, ocr_used: bool):
+async def _run_analysis(review_id: str, pdf_text: str, pdf_bytes: bytes, user_id: str, ocr_used: bool, ocr_words: list = None):
     """Background task: run the full agent analysis pipeline."""
     try:
-        await run_contract_analysis(review_id, pdf_text, user_id, ocr_used, pdf_bytes)
+        await run_contract_analysis(review_id, pdf_text, user_id, ocr_used, pdf_bytes, ocr_words or [])
     except Exception as e:
         import traceback
         print(f"Analysis failed for {review_id}: {e}")
@@ -105,8 +107,8 @@ async def analyze_contract(
 
         # Extract text (OCR only applies to PDFs when toggled on by user)
         ocr_flag = use_ocr.lower() in ("true", "1", "yes")
-        doc_text, ocr_used = extract_text(file_bytes, filename, ocr_flag)
-        print(f"Extracted {len(doc_text)} chars, ocr_used={ocr_used}")
+        doc_text, ocr_used, ocr_words = extract_text(file_bytes, filename, ocr_flag)
+        print(f"Extracted {len(doc_text)} chars, ocr_used={ocr_used}, ocr_words={len(ocr_words)}")
 
         # Create review in Convex
         try:
@@ -123,7 +125,7 @@ async def analyze_contract(
         pdf_path.write_bytes(file_bytes)
 
         # Run analysis in background
-        background_tasks.add_task(_run_analysis, review_id, doc_text, file_bytes, user_id, ocr_used)
+        background_tasks.add_task(_run_analysis, review_id, doc_text, file_bytes, user_id, ocr_used, ocr_words)
 
         return {"review_id": review_id, "status": "pending", "ocr_used": ocr_used}
     except Exception as e:

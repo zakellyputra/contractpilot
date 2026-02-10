@@ -42,11 +42,25 @@ def generate_pdf_report(review: dict, clauses: list[dict]) -> bytes:
     contract_type = html.escape(review.get("contractType", "Contract"))
     filename = html.escape(review.get("filename", "document.pdf"))
 
-    # Build clause cards HTML
+    # Build clause cards HTML — group sub-clauses under parent headings
     clause_cards = ""
+    current_parent = None
     for clause in clauses:
+        parent = clause.get("parentHeading")
+
+        # Render parent group header when entering a new parent group
+        if parent and parent != current_parent:
+            current_parent = parent
+            clause_cards += (
+                f'<h4 style="margin-top:16px;margin-bottom:4px;color:#374151;'
+                f'font-size:14px;">{html.escape(parent)}</h4>'
+            )
+        elif not parent:
+            current_parent = None
+
+        indent = "margin-left:24px;border-left:3px solid #bfdbfe;" if parent else ""
         clause_cards += f"""
-        <div style="border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:12px;">
+        <div style="border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:12px;{indent}">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                 <strong>{html.escape(clause.get('clauseType', 'Clause'))}</strong>
                 {_risk_badge(clause.get('riskLevel', 'medium'))}

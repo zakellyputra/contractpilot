@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { motion } from "motion/react";
 import { chatAboutClause } from "@/lib/api";
+import { chatBubbleUser, chatBubbleAssistant, fadeUp, staggerContainer } from "@/lib/motion";
 
 interface Message {
   role: "user" | "assistant";
@@ -100,14 +102,14 @@ export default function ClauseChat({
   // No clause selected
   if (!activeClauseId || !clause) {
     return (
-      <div className="h-full flex flex-col border-t border-gray-200 bg-gray-50">
-        <div className="px-4 py-2 border-b border-gray-200 bg-white">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+      <div className="h-full flex flex-col border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+        <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
             Chat
           </h3>
         </div>
         <div className="flex-1 flex items-center justify-center p-4">
-          <p className="text-gray-400 text-xs text-center">
+          <p className="text-gray-400 dark:text-gray-500 text-xs text-center">
             Select a clause to start chatting
           </p>
         </div>
@@ -116,13 +118,13 @@ export default function ClauseChat({
   }
 
   return (
-    <div className="h-full flex flex-col border-t border-gray-200 bg-white">
+    <div className="h-full flex flex-col border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
       {/* Header */}
-      <div className="px-4 py-2 border-b border-gray-200 flex items-center gap-2">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+      <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+        <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
           Chat
         </h3>
-        <span className="text-[10px] text-gray-400 truncate">
+        <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate">
           {clause.clauseType || "Clause"}
         </span>
       </div>
@@ -130,44 +132,48 @@ export default function ClauseChat({
       {/* Messages */}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
         {messages.length === 0 && !isLoading && (
-          <div className="space-y-2">
-            <p className="text-xs text-gray-400 text-center mb-3">
+          <motion.div className="space-y-2" variants={staggerContainer} initial="hidden" animate="visible">
+            <p className="text-xs text-gray-400 dark:text-gray-500 text-center mb-3">
               Ask about this clause
             </p>
             {starterPrompts.map((prompt) => (
-              <button
+              <motion.button
                 key={prompt}
+                variants={fadeUp}
                 onClick={() => sendMessage(prompt)}
-                className="block w-full text-left text-xs px-3 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
+                className="block w-full text-left text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-950 hover:border-blue-200 dark:hover:border-blue-700 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
               >
                 {prompt}
-              </button>
+              </motion.button>
             ))}
-          </div>
+          </motion.div>
         )}
 
         {messages.map((msg, i) => (
-          <div
+          <motion.div
             key={i}
+            variants={msg.role === "user" ? chatBubbleUser : chatBubbleAssistant}
+            initial="hidden"
+            animate="visible"
             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
               className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
                 msg.role === "user"
                   ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700"
+                  : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
               }`}
             >
               <p className="whitespace-pre-wrap">{msg.content}</p>
               {msg.sources && msg.sources.length > 0 && (
-                <div className="mt-2 pt-1.5 border-t border-gray-200 space-y-0.5">
+                <div className="mt-2 pt-1.5 border-t border-gray-200 dark:border-gray-600 space-y-0.5">
                   {msg.sources.map((url, j) => (
                     <a
                       key={j}
                       href={url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block text-[10px] text-blue-500 hover:underline truncate"
+                      className="block text-[10px] text-blue-500 dark:text-blue-400 hover:underline truncate"
                     >
                       {url}
                     </a>
@@ -175,12 +181,12 @@ export default function ClauseChat({
                 </div>
               )}
             </div>
-          </div>
+          </motion.div>
         ))}
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-lg px-3 py-2 text-xs text-gray-500">
+            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
               <span className="inline-flex items-center gap-1">
                 <span className="animate-pulse">Researching</span>
                 <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
@@ -195,7 +201,7 @@ export default function ClauseChat({
       </div>
 
       {/* Input */}
-      <div className="px-3 py-2 border-t border-gray-200 bg-white">
+      <div className="px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <div className="flex gap-2">
           <input
             type="text"
@@ -204,7 +210,7 @@ export default function ClauseChat({
             onKeyDown={handleKeyDown}
             placeholder="Ask about this clause..."
             disabled={isLoading}
-            className="flex-1 text-xs px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 disabled:opacity-50 disabled:bg-gray-50"
+            className="flex-1 text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 dark:focus:ring-blue-800 disabled:opacity-50 disabled:bg-gray-50 dark:disabled:bg-gray-800"
           />
           <button
             onClick={() => sendMessage(inputValue)}

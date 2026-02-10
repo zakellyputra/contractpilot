@@ -12,7 +12,7 @@ export default function SummaryPanel({
   filename,
 }: SummaryPanelProps) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-6">
+    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-6">
       <div className="flex items-center gap-2 mb-3">
         <svg
           className="w-5 h-5 text-blue-500"
@@ -28,12 +28,12 @@ export default function SummaryPanel({
           />
         </svg>
         <div>
-          <span className="font-medium text-gray-900">{filename}</span>
-          <span className="mx-2 text-gray-300">|</span>
-          <span className="text-gray-500 text-sm">{contractType}</span>
+          <span className="font-medium text-gray-900 dark:text-gray-100">{filename}</span>
+          <span className="mx-2 text-gray-300 dark:text-gray-600">|</span>
+          <span className="text-gray-500 dark:text-gray-400 text-sm">{contractType}</span>
         </div>
       </div>
-      <p className="text-gray-700 leading-relaxed">{summary}</p>
+      <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{summary}</p>
     </div>
   );
 }
