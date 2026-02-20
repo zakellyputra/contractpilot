@@ -56,7 +56,7 @@ def extract_clauses(contract_text: str) -> list[dict]:
 
     for section in sections:
         section = section.strip()
-        if len(section) < 30:
+        if len(section) < 50:
             continue
 
         # Extract heading from first line; if it's just a number (e.g. "1.2"),
@@ -75,7 +75,7 @@ def extract_clauses(contract_text: str) -> list[dict]:
         paragraphs = contract_text.split("\n\n")
         for i, para in enumerate(paragraphs):
             para = para.strip()
-            if len(para) < 30:
+            if len(para) < 50:
                 continue
             clauses.append({"heading": f"Section {i + 1}", "text": para[:3000]})
 
