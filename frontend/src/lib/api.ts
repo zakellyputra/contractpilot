@@ -33,17 +33,30 @@ export async function chatAboutClause(
   contractType: string,
   chatHistory: { role: string; content: string }[],
 ): Promise<{ answer: string; sources: string[] }> {
-  const res = await fetch(`${BACKEND_URL}/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      question,
-      clause_text: clauseText,
-      clause_type: clauseType,
-      contract_type: contractType,
-      chat_history: chatHistory,
-    }),
-  });
-  if (!res.ok) throw new Error(`Chat failed: ${res.statusText}`);
-  return res.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question,
+        clause_text: clauseText,
+        clause_type: clauseType,
+        contract_type: contractType,
+        chat_history: chatHistory,
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`Chat failed: ${res.statusText}`);
+    return res.json();
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error("Chat request timed out. Please try again.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
