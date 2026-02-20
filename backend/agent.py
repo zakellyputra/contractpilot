@@ -62,7 +62,7 @@ async def _analyze_one_clause(
 
     # Step 1: RAG lookup for legal context
     try:
-        rag_context = await query_legal_knowledge(clause_text, heading)
+        rag_context = await query_legal_knowledge(clause_text, heading, contract_type)
     except Exception as e:
         rag_context = ""
         print(f"  Clause {index+1} RAG failed: {e}")
