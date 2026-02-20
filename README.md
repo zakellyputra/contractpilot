@@ -1,71 +1,82 @@
 # ContractPilot
 
-AI-powered contract reviewer. Upload any contract — even scanned paper documents — and get instant risk analysis with plain-English summaries and a downloadable PDF report.
+**Sign smarter. Sign safer.**
+
+AI-powered contract reviewer. Upload any contract  -  even scanned paper documents  -  and get instant risk analysis with plain-English summaries, interactive clause highlighting, and a downloadable PDF report.
 
 ## Architecture
 
 ```
 Browser → Next.js (port 3000) → Python FastAPI (port 8000)
             │                        │
-        Flowglad billing        Dedalus ADK agent
-        Convex (real-time)         ├── MCP: DAuth (security)
-                                   ├── MCP: pdf-parse (doc parsing)
-                                   ├── MCP: brave-search (broad search)
-                                   ├── MCP: exa-mcp (deep search)
-                                   ├── MCP: context7 (template comparison)
+        Credit system           Dedalus ADK agent
+        Convex Auth                ├── Native tools: compute_risk_breakdown,
+        Convex (real-time)         │   find_key_dates, search_legal_knowledge_base
+                                   ├── MCP: Brave Search (broad legal context, via DAuth)
+                                   ├── MCP: Exa (deep legal research, via DAuth)
                                    ├── K2 Think via Vultr (clause analysis)
                                    ├── Vultr RAG (legal knowledge base)
-                                   └── Google Vision OCR (scanned docs)
+                                   └── Tesseract OCR (scanned docs, local)
 ```
 
 ### Pipeline
 
-1. **Phase 1** — Local classify + extract (instant)
-2. **Phase 2** — Parallel: RAG + K2 Think per clause + Exa MCP legal research (~35s)
-3. **Phase 3** — Dedalus summary enriched with Exa context (single LLM call, ~15s)
-4. **Phase 4** — Save results to Convex + generate PDF report
+1. **Phase 1**  -  Local classify + extract via PyMuPDF/Tesseract OCR (instant)
+2. **Phase 2**  -  Parallel: Vultr RAG + K2 Think per clause (6 concurrent) + Exa MCP legal research (~35s)
+3. **Phase 3**  -  Dedalus ADK agent: summary enrichment with native tools + Exa MCP (single multi-step agent, ~15s)
+4. **Phase 4**  -  Save results to Convex + generate PDF report via jsPDF
+
+## Features
+
+- **Risk Score (0–100)**  -  animated gauge with 4-category breakdown (Financial, Compliance, Operational, Reputational)
+- **Clause-by-Clause Analysis**  -  plain English, no legal jargon. "What this means for you" + "What to watch out for" + "Suggested change"
+- **Deep Review Mode**  -  side-by-side PDF viewer with color-coded clause highlights. Hover to see analysis, click to chat
+- **Clause Chat**  -  ask follow-up questions about any clause. Dedalus agent with RAG + Brave + Exa searches for sourced answers
+- **OCR Support**  -  Tesseract runs locally (no cloud API costs), with word-level bounding boxes for clause highlighting
+- **Sub-clause Detection**  -  splits 3.1, 3.2, (a), (b), (i), (ii) into individually analyzed sub-clauses
+- **Action Items**  -  prioritized checklist of what to negotiate
+- **Key Dates Timeline**  -  renewal deadlines, termination windows, obligation milestones
+- **PDF Report**  -  downloadable risk analysis via jsPDF
+- **Credit System**  -  first review free, then 5 reviews for $2.99
+- **Dark Mode**  -  full dark theme
 
 ## Prerequisites
 
 - **Node.js** >= 18
 - **Python** >= 3.11
 - **npm**
-- API keys for: Dedalus, Vultr, Google Cloud Vision, Flowglad, Convex
+- API keys for: Dedalus, Vultr, Convex
 
 ## Quick Start (Docker)
 
-The fastest way to run ContractPilot. Requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/).
+Requires [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/).
 
 ### 1. Clone
 
 ```bash
-git clone <repo-url> && cd contractpilot
+git clone https://github.com/zakellyputra/contractpilot.git && cd contractpilot
 ```
 
 ### 2. Configure environment
 
 Create `backend/.env`:
 
-```
+```env
 DEDALUS_API_KEY=sk-ded-...
 DEDALUS_AS_URL=https://as.dedaluslabs.ai
 VULTR_INFERENCE_API_KEY=your-vultr-key
 VULTR_LEGAL_COLLECTION_ID=your-collection-id
 CONVEX_URL=https://your-project.convex.cloud
-GOOGLE_APPLICATION_CREDENTIALS=./google-credentials.json
 FRONTEND_URL=http://localhost:3000
 ```
 
 Create `frontend/.env.local`:
 
-```
+```env
 NEXT_PUBLIC_CONVEX_URL=https://your-project.convex.cloud
-FLOWGLAD_SECRET_KEY=sk_test_...
 NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 CONVEX_DEPLOYMENT=dev:your-project
 ```
-
-Place your `google-credentials.json` in `backend/`.
 
 ### 3. Build and run
 
@@ -84,49 +95,32 @@ docker compose exec backend python seed_vultr_rag.py
 
 ## Quick Start (Local Development)
 
-### 1. Frontend setup
+### 1. Frontend
 
 ```bash
 cd frontend
 npm install
+npm run dev
+# → http://localhost:3000
 ```
 
-Copy `.env.local` and fill in your keys:
-
-```
-NEXT_PUBLIC_CONVEX_URL=https://your-project.convex.cloud
-FLOWGLAD_SECRET_KEY=sk_test_...
-NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
-```
-
-### 2. Convex setup
+### 2. Convex
 
 ```bash
 cd frontend
 npx convex dev
+# → watches for schema changes
 ```
 
-This will prompt you to create a Convex project and deploy the schema. Keep this running — it watches for changes.
-
-### 3. Backend setup
+### 3. Backend
 
 ```bash
 cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .
-```
-
-Copy `.env` and fill in your keys:
-
-```
-DEDALUS_API_KEY=sk-ded-...
-DEDALUS_AS_URL=https://as.dedaluslabs.ai
-VULTR_INFERENCE_API_KEY=your-vultr-key
-VULTR_LEGAL_COLLECTION_ID=your-collection-id
-CONVEX_URL=https://your-project.convex.cloud
-GOOGLE_APPLICATION_CREDENTIALS=./google-credentials.json
-FRONTEND_URL=http://localhost:3000
+uvicorn main:app --reload --port 8000
+# → http://localhost:8000
 ```
 
 ### 4. Seed legal knowledge base (one-time)
@@ -136,60 +130,56 @@ cd backend
 python seed_vultr_rag.py
 ```
 
-Downloads CUAD + Legal Clauses datasets from Kaggle and uploads to Vultr vector store.
-
-### 5. Run the app
-
-Open three terminals:
-
-```bash
-# Terminal 1 — Frontend
-cd frontend
-npm run dev
-# → http://localhost:3000
-
-# Terminal 2 — Convex
-cd frontend
-npx convex dev
-# → watches for schema changes
-
-# Terminal 3 — Backend
-cd backend
-source .venv/bin/activate
-uvicorn main:app --reload --port 8000
-# → http://localhost:8000
-```
-
-### 6. Verify
-
-- Frontend: http://localhost:3000
-- Backend health: http://localhost:8000/health → `{"status": "ok"}`
-- Convex dashboard: shown in terminal output
+Downloads CUAD (500+ contracts, 41 clause types) + Legal Clauses (21K+ clauses) from Kaggle and uploads to Vultr vector store.
 
 ## Project Structure
 
 ```
 contractpilot/
-├── frontend/                # Next.js 14 (App Router + Tailwind)
-│   ├── src/app/             # Pages and API routes
-│   ├── src/components/      # React components
-│   ├── Dockerfile           # Production container
-│   └── package.json
-├── frontend/convex/         # Convex schema + queries/mutations
-├── backend/                 # Python FastAPI
-│   ├── main.py              # FastAPI app + routes
-│   ├── agent.py             # Dedalus ADK agent orchestration (hybrid pipeline)
-│   ├── exa_search.py        # Exa MCP search integration
-│   ├── tools.py             # Custom tool functions
-│   ├── k2_client.py         # K2 Think via Vultr Inference
-│   ├── vultr_rag.py         # Vultr RAG legal knowledge queries
-│   ├── seed_vultr_rag.py    # One-time Kaggle data seeder
-│   ├── report_generator.py  # PDF report (WeasyPrint)
-│   ├── ocr.py               # Google Vision OCR
-│   ├── prompts.py           # System prompts
-│   ├── Dockerfile           # Production container
+├── frontend/                  # Next.js 16 (App Router + Tailwind v4)
+│   ├── src/app/               # Pages and API routes
+│   │   ├── page.tsx           # Landing + PDF upload
+│   │   ├── review/[id]/       # Real-time review results
+│   │   ├── dashboard/         # Past reviews
+│   │   └── billing/           # Credit purchase
+│   ├── src/components/
+│   │   ├── RiskDashboard.tsx  # Main review dashboard
+│   │   ├── RiskScoreGauge.tsx # Animated 0-100 gauge
+│   │   ├── RiskBreakdownChart.tsx  # 4-category breakdown
+│   │   ├── ClauseCard.tsx     # Individual clause analysis
+│   │   ├── ClauseChat.tsx     # AI chat about clauses
+│   │   ├── ClauseSidebar.tsx  # Clause navigation
+│   │   ├── PDFViewer.tsx      # Side-by-side PDF with highlights
+│   │   ├── DeepReviewView.tsx # Deep review mode
+│   │   ├── QuickSummaryView.tsx # Quick summary mode
+│   │   ├── SummaryPanel.tsx   # Executive summary
+│   │   ├── ActionItems.tsx    # What to negotiate
+│   │   ├── RiskTimeline.tsx   # Key dates timeline
+│   │   ├── UploadDropzone.tsx # Drag-and-drop upload
+│   │   ├── BillingGate.tsx    # Credit paywall
+│   │   └── ErrorBoundary.tsx  # Error handling
+│   ├── convex/                # Convex schema + queries/mutations
+│   │   ├── schema.ts
+│   │   ├── reviews.ts
+│   │   └── clauses.ts
+│   └── Dockerfile
+├── backend/                   # Python FastAPI
+│   ├── main.py                # FastAPI app + routes
+│   ├── agent.py               # Dedalus ADK agent (hybrid pipeline)
+│   ├── tools.py               # Native Dedalus tools
+│   ├── exa_search.py          # Exa MCP search integration
+│   ├── k2_client.py           # K2 Think via Vultr Inference
+│   ├── vultr_rag.py           # Vultr RAG legal knowledge queries
+│   ├── seed_vultr_rag.py      # Kaggle data seeder (CUAD + Legal Clauses)
+│   ├── chat.py                # Clause chat agent
+│   ├── report_generator.py    # PDF report generation
+│   ├── ocr.py                 # Tesseract OCR (local)
+│   ├── docx_extractor.py      # Word document support
+│   ├── prompts.py             # System prompts
+│   ├── models.py              # Pydantic models
+│   ├── Dockerfile
 │   └── pyproject.toml
-├── docker-compose.yml       # Full-stack orchestration
+├── docker-compose.yml
 └── README.md
 ```
 
@@ -197,12 +187,17 @@ contractpilot/
 
 | Category | Tools |
 |----------|-------|
-| MCPs (5) | DAuth + pdf-parse + brave-search + exa-mcp + context7 |
-| AI Models (3) | K2 Think (Vultr) + Google Vision OCR + Vultr RAG |
-| Billing | Flowglad — first review free, then $2.99/contract |
-| Database | Convex — real-time, frontend + backend read/write |
-| Frontend | Next.js 14 + Tailwind CSS |
-| Backend | Python FastAPI + Dedalus ADK |
+| Agent Framework | Dedalus ADK  -  orchestrator with native tools + MCP servers |
+| MCP Servers | Brave Search (via DAuth), Exa (via DAuth) |
+| Native Dedalus Tools | compute_risk_breakdown, find_key_dates, search_legal_knowledge_base |
+| AI Models | K2 Think / kimi-k2-instruct (Vultr Serverless Inference) |
+| RAG | Vultr RAG with llama-3.3-70b  -  legal knowledge base |
+| Legal Data | CUAD (500+ contracts) + Legal Clauses (21K+ clauses) |
+| Auth | Convex Auth (Google OAuth) + Dedalus Auth (DAuth) for MCP credentials |
+| Database | Convex  -  real-time reactive, shared by frontend + backend |
+| Frontend | Next.js 16, Tailwind CSS v4, Framer Motion, react-pdf, jsPDF |
+| Backend | Python, FastAPI, PyMuPDF, Tesseract OCR |
+| Deployment | Vultr (compute + inference) |
 
 ## Environment Variables
 
@@ -211,11 +206,10 @@ contractpilot/
 | Variable | Description |
 |----------|-------------|
 | `DEDALUS_API_KEY` | Dedalus Labs API key |
-| `DEDALUS_AS_URL` | Dedalus AS endpoint |
+| `DEDALUS_AS_URL` | Dedalus Auth Server endpoint |
 | `VULTR_INFERENCE_API_KEY` | Vultr Serverless Inference API key |
 | `VULTR_LEGAL_COLLECTION_ID` | Vultr RAG collection ID |
 | `CONVEX_URL` | Convex deployment URL |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Path to Google Cloud credentials JSON |
 | `FRONTEND_URL` | Frontend URL for CORS |
 
 ### Frontend (`frontend/.env.local`)
@@ -223,6 +217,7 @@ contractpilot/
 | Variable | Description |
 |----------|-------------|
 | `NEXT_PUBLIC_CONVEX_URL` | Convex deployment URL (public) |
-| `FLOWGLAD_SECRET_KEY` | Flowglad billing secret key |
 | `NEXT_PUBLIC_BACKEND_URL` | Python backend URL |
 | `CONVEX_DEPLOYMENT` | Convex deployment identifier |
+
+## Built at DevFest 2026  -  Columbia University

@@ -10,6 +10,9 @@ __pycache__/
 .env.*.local
 google-credentials.json
 
+# Uploaded PDFs
+backend/pdf_storage/
+
 # Build
 .next/
 dist/

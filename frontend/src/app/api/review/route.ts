@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
+import { fetchQuery } from "convex/nextjs";
+import { api } from "../../../../convex/_generated/api";
 
 // BACKEND_URL (server-only) is for Docker where services use container names.
 // Falls back to NEXT_PUBLIC_BACKEND_URL for local dev.
@@ -9,15 +12,20 @@ const BACKEND_URL =
 
 export async function POST(request: NextRequest) {
   try {
+    // Get authenticated user from Convex Auth
+    const token = await convexAuthNextjsToken();
+    const user = await fetchQuery(api.users.me, {}, { token });
+    if (!user) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    }
+    const userId = user.tokenIdentifier;
+
     const formData = await request.formData();
     const file = formData.get("file");
 
     if (!file || !(file instanceof Blob)) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
-
-    // In production, DAuth provides this. For dev, use header or default.
-    const userId = request.headers.get("x-user-id") ?? "dev-user";
 
     // Flowglad billing check — disabled for now, re-enable after demo setup
     // try {
@@ -45,10 +53,28 @@ export async function POST(request: NextRequest) {
       backendForm.append("use_ocr", useOcr.toString());
     }
 
-    const res = await fetch(`${BACKEND_URL}/analyze`, {
-      method: "POST",
-      body: backendForm,
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+
+    let res: Response;
+    try {
+      res = await fetch(`${BACKEND_URL}/analyze`, {
+        method: "POST",
+        body: backendForm,
+        signal: controller.signal,
+      });
+    } catch (fetchError) {
+      clearTimeout(timeout);
+      if (fetchError instanceof DOMException && fetchError.name === "AbortError") {
+        return NextResponse.json(
+          { error: "Backend did not respond within 30 seconds. Please try again." },
+          { status: 504 }
+        );
+      }
+      throw fetchError;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");

@@ -18,6 +18,8 @@ class ClauseResult(BaseModel):
     concern: str | None = None
     suggestion: str | None = None
     k2Reasoning: str | None = None
+    parentHeading: str | None = None
+    subClauseIndex: int | None = None
 
 
 class ReviewResult(BaseModel):

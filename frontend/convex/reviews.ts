@@ -2,11 +2,15 @@ import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 
 export const list = query({
-  args: { userId: v.string() },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const userId = identity.tokenIdentifier;
     return await ctx.db
       .query("reviews")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .order("desc")
       .collect();
   },
@@ -15,7 +19,15 @@ export const list = query({
 export const get = query({
   args: { id: v.id("reviews") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
+    const review = await ctx.db.get(args.id);
+    if (!review) return null;
+
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity || review.userId !== identity.tokenIdentifier) {
+      return null;
+    }
+
+    return review;
   },
 });
 
@@ -43,6 +55,20 @@ export const updateStatus = mutation({
   },
 });
 
+export const updateProgress = mutation({
+  args: {
+    id: v.id("reviews"),
+    totalClauses: v.optional(v.number()),
+    completedClauses: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const patch: Record<string, number> = {};
+    if (args.totalClauses !== undefined) patch.totalClauses = args.totalClauses;
+    if (args.completedClauses !== undefined) patch.completedClauses = args.completedClauses;
+    await ctx.db.patch(args.id, patch);
+  },
+});
+
 export const setResults = mutation({
   args: {
     id: v.id("reviews"),
@@ -62,6 +88,7 @@ export const setResults = mutation({
     ),
     contractType: v.optional(v.string()),
     reportUrl: v.optional(v.string()),
+    pdfUrl: v.optional(v.string()),
     ocrUsed: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {

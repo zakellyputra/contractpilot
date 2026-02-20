@@ -1,7 +1,9 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
 
 export default defineSchema({
+  ...authTables,
   reviews: defineTable({
     userId: v.string(),
     filename: v.string(),
@@ -25,7 +27,16 @@ export default defineSchema({
       )
     ),
     reportUrl: v.optional(v.string()),
+    pdfUrl: v.optional(v.string()),
     ocrUsed: v.optional(v.boolean()),
+    totalClauses: v.optional(v.number()),
+    completedClauses: v.optional(v.number()),
+    unlocked: v.optional(v.boolean()),
+  }).index("by_user", ["userId"]),
+
+  userCredits: defineTable({
+    userId: v.string(),
+    credits: v.number(),
   }).index("by_user", ["userId"]),
 
   clauses: defineTable({
@@ -38,5 +49,11 @@ export default defineSchema({
     concern: v.optional(v.string()),
     suggestion: v.optional(v.string()),
     k2Reasoning: v.optional(v.string()),
+    pageNumber: v.optional(v.number()),
+    rects: v.optional(v.string()), // JSON: [{x0, y0, x1, y1}]
+    pageWidth: v.optional(v.number()),
+    pageHeight: v.optional(v.number()),
+    parentHeading: v.optional(v.string()),
+    subClauseIndex: v.optional(v.number()),
   }).index("by_review", ["reviewId"]),
 });

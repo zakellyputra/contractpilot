@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import { FlowgladProvider } from "@flowglad/nextjs";
+import { ThemeProvider } from "next-themes";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,13 +28,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <FlowgladProvider>
-          <ConvexClientProvider>{children}</ConvexClientProvider>
-        </FlowgladProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ConvexAuthNextjsServerProvider>
+            <FlowgladProvider>
+              <ConvexClientProvider>{children}</ConvexClientProvider>
+            </FlowgladProvider>
+          </ConvexAuthNextjsServerProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
