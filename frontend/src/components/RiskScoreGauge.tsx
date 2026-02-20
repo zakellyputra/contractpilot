@@ -20,10 +20,11 @@ function getRiskColor(score: number) {
 }
 
 export default function RiskScoreGauge({ score }: RiskScoreGaugeProps) {
+  const clampedScore = Math.max(0, Math.min(100, score));
   const radius = 80;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (score / 100) * circumference;
-  const color = getRiskColor(score);
+  const offset = circumference - (clampedScore / 100) * circumference;
+  const color = getRiskColor(clampedScore);
 
   // Animated counter
   const motionScore = useMotionValue(0);
@@ -32,8 +33,8 @@ export default function RiskScoreGauge({ score }: RiskScoreGaugeProps) {
   const [displayed, setDisplayed] = useState(0);
 
   useEffect(() => {
-    motionScore.set(score);
-  }, [score, motionScore]);
+    motionScore.set(clampedScore);
+  }, [clampedScore, motionScore]);
 
   useEffect(() => {
     const unsubscribe = displayScore.on("change", (v) => setDisplayed(v));
@@ -73,7 +74,7 @@ export default function RiskScoreGauge({ score }: RiskScoreGaugeProps) {
         </div>
       </div>
       <p className="mt-2 text-lg font-semibold" style={{ color }}>
-        {getRiskLabel(score)}
+        {getRiskLabel(clampedScore)}
       </p>
     </div>
   );
